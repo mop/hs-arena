@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.0" orientation="orthogonal" width="20" height="15" tilewidth="16" tileheight="16">
+ <tileset firstgid="1" name="minish_chip_forest_01" tilewidth="16" tileheight="16">
+  <image source="../../../../Desktop/minish_chip_forest_01.png"/>
+ </tileset>
+ <layer name="Kachelebene 1" width="20" height="15">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA42TuzJEQRCGu+UUCYFrRICVELBIOMGWFYkWCQKeQU4JXB4Cp+rUokTshlQp5RK6PAKegr9remr7TJ09K/iqp2dP//N3z2zMRLEhIqJtUMR6FsyDHeQLlP7OMwmmQAm/P2Z8I3p7oIL1KlgH+8g3wHWOnnjo170rsEmOLXAKbrFXA3VwhvyN0x5tzYr6KxpPu4gvIAF3yN8RP8AnuEdeCPSk5gt8gx+dUUXPEU8nqpXFEiiz69n20aYentnNKNFzDqhRu5yjK9xorGrNIeKRzqiTnF5M6Ro5s8rNz7D5L2pJZ1Qyen6f2fWR1X+ebqI9i9554O8pp195EwNgEAyZfrvY9RxR87lNg5lgz7/zOXZvvaBMaM+i9/DP+5C5+ne+ZryVTd0r6AY9LfqSvcsWdy8sUuM/Y++jHWkvYh/owPo4uCPvJ5yJ6Anic5gcI2BU36V4GkO8UH++xyz/Vs8S6VuKVW/ceA1j2O8f9DtVerAEAAA=
+  </data>
+ </layer>
+ <layer name="Kachelebene 4" width="20" height="15">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA2NgIA+EA3EEEEcCcRSZZiCDUiAuA+JyIK6ggnmjYBRQCqSpbJ4llc0Lp7J5oDwoA8SyQCyJxJajwEwrILYGYnMktg0F5gEAH91XTbAEAAA=
+  </data>
+ </layer>
+ <layer name="Kachelebene 4" width="20" height="15">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAA5NjIA6UAnEZEJcDcQUedTZEmkcsiKKyeTqM1DVv1L+UAWr7F1/aHAXYgTQQywCxLJXMswRiKyC2ppJ54UAcAcSRQAwAU5O9EbAEAAA=
+  </data>
+ </layer>
+ <layer name="Kachelebene 2" width="20" height="15">
+  <data encoding="base64" compression="gzip">
+   H4sIAAAAAAAAAwtnYGCIAOJIII5iwA+kgVgGiGWBWA6HmlIgLgPiciCuIGCeJRBbAbE1ENsQUEsMCGcg3i/EAFL8MgpGwUgHxJQPpABs5QMAxSRE2bAEAAA=
+  </data>
+ </layer>
+</map>

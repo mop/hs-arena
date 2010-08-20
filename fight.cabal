@@ -1,0 +1,46 @@
+Name:                fight
+Version:             0.0.1
+Stability:           experimental
+Synopsis:            Zelda like fighting mini-game using SDL
+Description:         Zelda like fighting mini-game using SDL
+License:             GPL-3
+License-file:        LICENSE
+Author:              Michael Opitz
+Maintainer:          opitz.michael (-at-) gmail (-dot-) com
+Build-Type:          Simple
+Cabal-Version:       >=1.4
+Category:            Game
+Homepage:            ProjectHomepage
+
+Data-Files:          images/arrow-left.png, images/arrow-right.png,
+                     images/circle.png, images/cross.png, images/foe-1.png,
+                     images/foe-2.png, images/foe-3.png, images/foe-4.png,
+                     images/foe.png, images/foe.pxi, images/hero-sword-down.png,
+                     images/hero-sword-left.png, images/hero-sword-right.png,
+                     images/hero-sword-up.png, images/hero-sword.png,
+                     images/hero.png, images/hp-bar.png, images/hps.png, 
+                     images/map.tmx, images/minish_chip_forest_01.col,
+                     images/minish_chip_forest_01.png, images/sword-sprite.png,
+                     images/sword.png
+
+Executable fight
+  Main-is:           Main.hs
+  Other-modules:     Animation
+                     ChipsetViewer
+                     Collission
+                     Main
+                     MapLoader
+                     Movemap
+                     Object
+                     Tile
+                     Types
+
+  Build-Depends:     base >= 4, containers, random, SDL, SDL-image, HaXml, mtl,
+                     haskell98, containers
+
+  ghc-options: -Wall -O
+  ghc-prof-options: -prof -auto-all
+  Includes: SDL/SDL.h 
+  Extra-libraries: SDL SDLmain 
+  
+  c-sources:           wrapper.c
