@@ -122,8 +122,7 @@ bounceMovement obj projectile = do
     startMoving
     where   direction = vectorToDirection $ spriteDirection $ objToSprite obj
             objectPosition = spritePosition $ objToSprite obj
-            objectPosition' = let (BBox x y z w h) = objectPosition
-                              in  Vector x y z
+            objectPosition' = bboxToVector objectPosition
             projectileDirection = spriteDirection $ objToSprite projectile 
             projectileDisplace = projectileDirection `vecMul` (2 + velAddition)
             velAddition = round $ fromInteger (projectileVelocity projectile) * 0.05
@@ -167,8 +166,7 @@ isOutOfRange (Projectile _ spr weapon start _ _) = fromInteger range < length
     where   range = weaponRange weapon * 16
             length = vecLength diff
             diff = position `vecMinus` start
-            position = let (BBox x y z w h) = spritePosition spr
-                       in Vector x y z
+            position = bboxToVector $ spritePosition spr
 
 isDead :: Object -> Bool
 isDead p@(Projectile _ s _ _ r _) = r || isOutOfScreen (spritePosition s) 

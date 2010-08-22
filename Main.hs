@@ -120,9 +120,10 @@ heroSwordSlayAnimation :: Animator
 heroSwordSlayAnimation = frameAnimator 96 96 10 2 0 0
 
 genFoe :: Object
-genFoe = Object 100 3 fSprite [weaponSword] 0 0 defaultMoveStrategy
+genFoe = Object 100 3 fSprite [weaponSword'] 0 0 defaultMoveStrategy
     where   fSprite = Sprite 2 3 position defaultVector defaultVector 0.0 defaultCharOffset charAnimator
             position = BBox 64.0 64.0 1.0 16.0 16.0
+            weaponSword' = weaponSword { weaponRange = 0 }
             
 render :: World -> IO ()
 render world = forM graphics drawGraphic >> return ()
@@ -182,7 +183,7 @@ main = do
     screen <- SDL.getVideoSurface
     textures <- loadGraphics
     ticks <- SDL.getTicks >>= return . fromIntegral
-    let world = World screen [] [] [genFoe] genHero textures ticks ticks
+    let world = World screen [] [] [genFoe] genHero textures ticks ticks defaultVector
     world' <- loadMap "images/map.tmx" world
 
     eventHandler world'
@@ -258,9 +259,13 @@ eventHandler world = do
 
     let objects'''' = map (makeMove world'') objects'''
     let world''' = world'' { worldObjects = rejectDead objects'''' }
+    let world'''' = withHeroDirection world''' (const $ worldInput world''') 
 
     e <- SDL.pollEvent
-    handleEvent (handleAttacks world''') e
+    handleEvent (handleAttacks world'''') e
+
+constNotNull vec vec' | zeroVec vec = vec'
+                      | otherwise   = vec
 
 crossSprite ::Vector -> Sprite
 crossSprite (Vector x y z) = Sprite (-1) 1 position dir pDir 0.0 offset animator
@@ -282,12 +287,22 @@ renderPath world obj = mapM_ drawGraphic sprites
             plotData s = PlotData screen (fromJust (theTexture s))
             drawGraphic s = runReaderT (draw s) (plotData s)
 
+heroCanMove :: World -> Bool
+heroCanMove world = head moves == DefaultMove
+    where   hero = worldHero world
+            moves = moveStrategyMoves . objectMoveStrategy $ hero
 withHeroDirection :: World -> (Vector -> Vector) -> World
-withHeroDirection world fun = world { worldHero = hero' }
+withHeroDirection world fun | heroCanMove world = world { worldHero = hero' }
+                            | otherwise = world
     where   direction' = fun $ spriteDirection $ objectSprite $ worldHero world
+            direction = spriteDirection $ objectSprite $ worldHero world
+            hero = worldHero world
+            hSprite = objectSprite hero
+            prevDir | zeroVec direction = spritePrevDirection $ hSprite
+                    | otherwise = direction
             sprite' = (objectSprite $ worldHero world) { 
                         spriteDirection = direction'
-                      , spritePrevDirection = spriteDirection $ objectSprite $ worldHero world
+                      , spritePrevDirection = prevDir
                       }
             hero' = (worldHero world) { objectSprite = sprite' }
 
@@ -325,7 +340,8 @@ heroSetSwordSlay world dir = hero'
                                  }
     
 shootProjectile :: World -> World
-shootProjectile world | canShoot  = world { worldObjects = projectile : objects 
+shootProjectile world | canShoot && heroCanMove world  
+                                  = world { worldObjects = projectile : objects 
                                           , worldHero = hero'
                                           }
                       | otherwise = world
@@ -340,7 +356,7 @@ shootProjectile world | canShoot  = world { worldObjects = projectile : objects
                                               , spritePosition = spritePosition hSprite
                                               }
             hSprite = objectSprite hero
-            activeWeapon = (objectWeapons hero) !!  (fromInteger $ objectActiveWeapon hero)
+            activeWeapon = (objectWeapons hero) !! (fromInteger $ objectActiveWeapon hero)
             position = Vector (bboxX bbox) (bboxY bbox) 2.0
             bbox = boundingBox hero
             heroDirection = spriteDirection hSprite
@@ -352,17 +368,21 @@ shootProjectile world | canShoot  = world { worldObjects = projectile : objects
             diffTicks = worldTicks world - objectWeaponLastShoot hero 
 
 
+withWorldInput :: World -> (Vector -> Vector) -> World
+withWorldInput w fun = let v = fun $ worldInput w
+                       in w { worldInput = v }
+
 handleEvent :: World -> SDL.Event -> IO ()
 handleEvent _ SDL.Quit = return ()
-handleEvent w (SDL.KeyDown keysym) | SDL.symKey keysym == SDL.SDLK_q = return ()
-                                   | SDL.symKey keysym == SDL.SDLK_LEFT  = eventHandler $ withHeroDirection w (setVecX (-1.0))
-                                   | SDL.symKey keysym == SDL.SDLK_RIGHT = eventHandler $ withHeroDirection w (setVecX 1.0)
-                                   | SDL.symKey keysym == SDL.SDLK_UP    = eventHandler $ withHeroDirection w (setVecY (-1.0))
-                                   | SDL.symKey keysym == SDL.SDLK_DOWN  = eventHandler $ withHeroDirection w (setVecY 1.0)
+handleEvent w (SDL.KeyDown keysym) | SDL.symKey keysym == SDL.SDLK_q     = return ()
+                                   | SDL.symKey keysym == SDL.SDLK_LEFT  = eventHandler $ withWorldInput w (setVecX (-1.0))
+                                   | SDL.symKey keysym == SDL.SDLK_RIGHT = eventHandler $ withWorldInput w (setVecX 1.0)
+                                   | SDL.symKey keysym == SDL.SDLK_UP    = eventHandler $ withWorldInput w (setVecY (-1.0))
+                                   | SDL.symKey keysym == SDL.SDLK_DOWN  = eventHandler $ withWorldInput w (setVecY 1.0)
                                    | SDL.symKey keysym == SDL.SDLK_SPACE = eventHandler $ shootProjectile w
-handleEvent w (SDL.KeyUp keysym) | SDL.symKey keysym == SDL.SDLK_LEFT  = eventHandler $ withHeroDirection w (setVecX 0.0)
-                                 | SDL.symKey keysym == SDL.SDLK_RIGHT = eventHandler $ withHeroDirection w (setVecX 0.0)
-                                 | SDL.symKey keysym == SDL.SDLK_UP    = eventHandler $ withHeroDirection w (setVecY 0.0)
-                                 | SDL.symKey keysym == SDL.SDLK_DOWN  = eventHandler $ withHeroDirection w (setVecY 0.0)
+handleEvent w (SDL.KeyUp keysym) | SDL.symKey keysym == SDL.SDLK_LEFT  = eventHandler $ withWorldInput w (setVecX 0.0)
+                                 | SDL.symKey keysym == SDL.SDLK_RIGHT = eventHandler $ withWorldInput w (setVecX 0.0)
+                                 | SDL.symKey keysym == SDL.SDLK_UP    = eventHandler $ withWorldInput w (setVecY 0.0)
+                                 | SDL.symKey keysym == SDL.SDLK_DOWN  = eventHandler $ withWorldInput w (setVecY 0.0)
 handleEvent w _ = eventHandler w
 

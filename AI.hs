@@ -12,6 +12,7 @@ import Object
 import Movemap
 
 import System.IO.Unsafe (unsafePerformIO)
+import Data.List (nub)
 
 tileSize :: Double
 tileSize = 16.0
@@ -45,24 +46,35 @@ markCollissionWith flag cols w _ (x, y) = let (_:xs) = drop index cols
                                           in prefix ++ (flag : xs)
     where   index = fromInteger $ w * fromIntegral y + fromIntegral x
 
-moveableCoords :: Moveable_ a => a -> (Int, Int)
-moveableCoords m = (x, y)
-    where   x = round $ (bboxX $ boundingBox m) / tileSize
-            y = round $ (bboxY $ boundingBox m) / tileSize
+moveableCoords :: Moveable_ a => a -> [(Int, Int)]
+moveableCoords m = nub [ (x, y), (x'', y), (x, y''), (x'', y'') ]
+    where   x = floor $ (bboxX $ boundingBox m) / tileSize
+            y = floor $ (bboxY $ boundingBox m) / tileSize
+            x' = (bboxX $ boundingBox m) + (bboxW $ boundingBox m) - 0.1
+            y' = (bboxY $ boundingBox m) + (bboxH $ boundingBox m) - 0.1
+            x'' = floor $ x' / tileSize
+            y'' = floor $ y' / tileSize
 
 canCollide :: Moveable_ a => a -> Bool
 canCollide obj = (bboxZ $ boundingBox obj) == 1.0
 
+joinMaps :: [[Bool]] -> [Bool]
+joinMaps xs = foldr reducer (head xs) $ tail xs
+    where   reducer x m = map (uncurry (||)) $ zip x m
+
+joinMapsInv :: [[Bool]] -> [Bool]
+joinMapsInv xs = foldr reducer (head xs) $ tail xs
+    where   reducer x m = map (uncurry (&&)) $ zip x m
+
 constructMap :: World -> Map
 constructMap world = Map width height collissions'
-    where   collideables = worldCollideableTiles world
-            collissions  = foldr reducer (emptyCollissionMap world) (worldTiles world)
-            collissions' = foldr reducer (collissions) (filter isObject $ worldObjects world)
+    where   collissions  = foldr reducer (emptyCollissionMap world) (worldTiles world)
+            collissions' = foldr reducer (collissions) (filter isObject $ objs)
+            objs = worldObjects world
             width  = worldWidth world
             height = worldHeight world
-            reducer m colMap | canCollide m = markCollission colMap 
-                                                width height (moveableCoords m)
-                               | otherwise = colMap
+            reducer m colMap | canCollide m = joinMaps $ map (markCollission colMap width height) (moveableCoords m)
+                             | otherwise = colMap
 
 objectPosition :: Object -> (Integer, Integer)
 objectPosition obj = (x, y)
@@ -74,8 +86,8 @@ heroPosition :: World -> (Integer, Integer)
 heroPosition = objectPosition . worldHero
 
 toVec :: (Integer, Integer) -> Vector
-toVec (x, y) = Vector (fromInteger x * tileSize + 1.0) 
-                      (fromInteger y * tileSize + 1.0) 1.0
+toVec (x, y) = Vector (fromInteger x * tileSize) 
+                      (fromInteger y * tileSize) 1.0
 
 isAllowedMove :: Object -> Bool
 isAllowedMove obj = let (MoveStrategy moves allowed) = objectMoveStrategy obj
@@ -108,33 +120,53 @@ objectInRange obj other =  (xNearlyEqual || yNearlyEqual)
             b2 = boundingBox other
             v1 = bboxToVector b1
             v2 = bboxToVector b2
-            xNearlyEqual = abs (vecX delta) < 2.0
-            yNearlyEqual = abs (vecY delta) < 2.0
-            lengthInRange = vecLength delta <= (fromInteger $ (objectWeaponRange obj + 1) * 16)
-            direction = spriteDirection $ objToSprite obj
+            xNearlyEqual = abs (vecX delta) < tileSize
+            yNearlyEqual = abs (vecY delta) < tileSize
+            lengthInRange = vecLength delta <= (fromInteger $ (objectWeaponRange obj + 1) * 16) + 8.0
 
 shootProjectileToObject :: Object -> Object -> Object
 shootProjectileToObject obj other = Projectile velocity spr weapon pos False (Just obj)
     where   velocity = maybe 0 weaponVelocity (objectActiveWeapon' obj)
             spr = maybe defaultSprite (\w -> 
-                    (weaponSprite w) { spriteDirection = direction
+                    (weaponSprite w) { spriteDirection = dir'
                                      , spritePosition = objPosition
                                      }) $ objectActiveWeapon' obj
             weapon = maybe defaultWeapon id $ objectActiveWeapon' obj
             objPosition = spritePosition $ objToSprite obj
-            direction = spriteDirection $ objToSprite obj
+            spriteDir = spriteDirection $ objToSprite obj
+            dir | zeroVec $ spriteDir = spritePrevDirection $ objToSprite obj
+                | otherwise = spriteDir
+            dir' = dir `vecMul` (weaponVelocity weapon)
             pos = (bboxToVector objPosition) { vecZ = 2.0 }
+
+getDirectionTowards :: Object -> Object -> Vector
+getDirectionTowards src dst = Vector xDir yDir 0.0
+    where   srcPos = bboxToVector . spritePosition . objToSprite $ src
+            dstPos = bboxToVector . spritePosition . objToSprite $ dst
+            diff = dstPos `vecMinus` srcPos
+            xNearlyEqual = abs (vecX diff) <= 2.0
+            yNearlyEqual = abs (vecY diff) <= 2.0
+            xDir | xNearlyEqual = 0.0
+                 | vecX diff > 0.0 = 1.0
+                 | otherwise = -1.0
+            yDir | yNearlyEqual = 0.0
+                 | vecY diff > 0.0 = 1.0
+                 | otherwise = -1.0
 
 handleAttacks :: World -> World
 handleAttacks world = world { worldObjects = projectiles ++ inRangeObjs' ++ objects' }
     where   objects = filter (\o -> isObject o && objectCanAttack world o) $ worldObjects world
             inRangeObjs = filter isHeroInRange objects
-            inRangeObjs' = map updateLastShoot inRangeObjs
+            inRangeObjs' = map updateObj inRangeObjs
             rangedObjIds = map (spriteId . objToSprite) inRangeObjs'
             objects' = filter (\x -> not $ spriteId (objToSprite x) `elem` rangedObjIds) 
                             (worldObjects world)
-            updateLastShoot o = o { objectWeaponLastShoot = worldTicks world }
-            projectiles = map (flip shootProjectileToObject hero) inRangeObjs
+            updateObj o = o { objectWeaponLastShoot = worldTicks world 
+                            , objectSprite = sprite'
+                            }
+                where   sprite' = let dir = getDirectionTowards o hero
+                                  in (objToSprite o) { spriteDirection = dir }
+            projectiles = map (flip shootProjectileToObject hero) inRangeObjs'
             hero = worldHero world
             isHeroInRange obj = objectInRange obj $ worldHero world
 
@@ -166,10 +198,8 @@ makeMove world obj | not $ isObject obj = obj
                 in obj { objectMoveStrategy = MoveStrategy (movements ++ moves) canMove }
     where   collissionMap = constructMap world
             collissionMap' = let (Map width height cols) = collissionMap 
-                                 (x, y) = objectPosition obj
-                                 x' = fromInteger x
-                                 y' = fromInteger y
-                                 cols' = unmarkCollission cols width height (x', y')
+                                 coords = moveableCoords obj
+                                 cols' = joinMapsInv $ map (unmarkCollission cols width height) coords
                              in collissionMap { mapCollissions = cols' }
             waypoints = search collissionMap' objPos heroPos
             waypoints' = waypoints ++ linearizeDiagonalMove collissionMap' (last waypoints) heroPos

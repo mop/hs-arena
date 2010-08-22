@@ -87,6 +87,11 @@ instance Drawable_ Sprite where
     zOrder = bboxZ . spritePosition
     texture = spriteGraphic
 
+spriteFacing :: Sprite -> Vector
+spriteFacing sprite | zeroVec dir = spritePrevDirection sprite
+                    | otherwise = dir
+    where   dir = spriteDirection sprite
+
 
 instance Show Drawable where
     show (Drawable d) = show d
@@ -105,7 +110,7 @@ tile = Drawable
 sortByZ :: [Drawable] -> [Drawable]
 sortByZ = sortBy (\a b -> compare (zOrder a) (zOrder b))
 
-class Moveable_ a where
+class (Show a) => Moveable_ a where
     move :: a -> Double -> a
     boundingBox :: a -> BBox
     direction :: a -> Vector

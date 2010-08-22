@@ -142,12 +142,13 @@ defaultWeapon = Weapon 0 defaultSprite 0 0 (-1) 0  []
 type TextureMap = M.Map Integer SDL.Surface
 
 data World = World {
-    worldScreen   :: !SDL.Surface
-  , worldTiles    :: ![Tile]
+    worldScreen           :: !SDL.Surface
+  , worldTiles            :: ![Tile]
   , worldCollideableTiles :: ![Tile]
-  , worldObjects  :: ![Object]
-  , worldHero     :: !Object
-  , worldTextures :: !TextureMap
-  , worldTicks    :: !Integer
-  , worldAiTicks  :: !Integer
+  , worldObjects          :: ![Object]
+  , worldHero             :: !Object
+  , worldTextures         :: !TextureMap
+  , worldTicks            :: !Integer
+  , worldAiTicks          :: !Integer
+  , worldInput            :: !Vector
 }
