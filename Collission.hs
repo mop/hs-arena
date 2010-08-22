@@ -24,9 +24,9 @@ isCollission box1 box2
                           top1 >= bottom2 ||
                           bottom1 <= top2)
 
-trimTo a b | a > 0 = b
+trimTo a b | a > 0 = min (abs a) (abs b)
            | otherwise = 0
-trimToN a b | a < 0 = b
+trimToN a b | a < 0 = min (abs a) (abs b)
             | otherwise = 0
 collissionResponse :: Vector -> BBox -> BBox -> BBox
 collissionResponse dir box1 box2 | not (isCollission box1 box2) = box1

@@ -25,18 +25,20 @@ Data-Files:          images/arrow-left.png, images/arrow-right.png,
 
 Executable fight
   Main-is:           Main.hs
-  Other-modules:     Animation
+  Other-modules:     AI
+                     Animation
                      ChipsetViewer
                      Collission
                      Main
                      MapLoader
                      Movemap
                      Object
+                     Search
                      Tile
                      Types
 
   Build-Depends:     base >= 4, containers, random, SDL, SDL-image, HaXml, mtl,
-                     haskell98, containers
+                     haskell98, PSQueue
 
   ghc-options: -Wall -O
   ghc-prof-options: -prof -auto-all

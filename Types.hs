@@ -4,6 +4,7 @@ where
 
 import qualified Graphics.UI.SDL as SDL
 import Control.Monad.Reader
+import qualified Data.Map as M
 
 data PlotData = PlotData {
     plotBackground :: SDL.Surface
@@ -46,6 +47,7 @@ data Sprite = Sprite {
   , spritePosition      :: BBox
   , spriteDirection     :: Vector
   , spritePrevDirection :: Vector
+  , spriteMoveDiff      :: Double
   , spriteTextureOffset :: Vector
   , spriteAnimator      :: Animator
 } deriving (Show, Eq)
@@ -73,7 +75,7 @@ instance Show Animator where
 instance Eq Animator where
     a == b = True
 
-defaultSprite  = Sprite 0 0 defaultBBox defaultVector defaultVector defaultVector defaultAnimator
+defaultSprite  = Sprite 0 0 defaultBBox defaultVector defaultVector 0.0 defaultVector defaultAnimator
 defaultSprite' = defaultSprite { spritePosition = (defaultBBox { bboxZ = 1.0 }) }
 
 class Drawable_ a where
@@ -88,10 +90,13 @@ data MoveStrategy = MoveStrategy {
   , moveStrategyCanMove       :: Bool
 } deriving (Show, Eq)
 
+data MoveOwner = AI | Ani 
+    deriving (Show, Eq)
 data Move = DefaultMove 
           | StopMove
           | StartMove
-          | MoveTo Vector
+          | MoveTo Vector Integer MoveOwner
+          | SetVelocity Integer
           | SetGraphic Integer
           | SetAnimation Animator
           | SetTextureOffset Vector
@@ -102,3 +107,47 @@ newtype MoveLogger a = MoveLogger { unMoveLogger :: ([Move], a) }
 
 defaultMoveStrategy :: MoveStrategy
 defaultMoveStrategy = MoveStrategy [DefaultMove] True
+
+data Object = Object {
+      objectHp              :: !Integer
+    , objectVelocity        :: !Integer
+    , objectSprite          :: !Sprite
+    , objectWeapons         :: ![Weapon]
+    , objectActiveWeapon    :: !Integer
+    , objectWeaponLastShoot :: !Integer
+    , objectMoveStrategy    :: !MoveStrategy
+  } | 
+  Projectile {
+      projectileVelocity :: !Integer
+    , projectileSprite   :: !Sprite
+    , projectileWeapon   :: !Weapon
+    , projectileStartPos :: !Vector
+    , projectileRemove   :: !Bool
+    , projectileShooter  :: Maybe Object
+  } deriving (Show, Eq)
+
+data Weapon = Weapon {
+    weaponStrength    :: !Integer
+  , weaponSprite      :: !Sprite
+  , weaponRange       :: !Integer
+  , weaponVelocity    :: !Integer
+  , weaponIcon        :: !Integer
+  , weaponCooldown    :: !Integer
+  , weaponHeroSprites :: ![(Direction, Integer)]
+  } deriving (Show, Eq)
+
+defaultWeapon = Weapon 0 defaultSprite 0 0 (-1) 0  []
+
+
+type TextureMap = M.Map Integer SDL.Surface
+
+data World = World {
+    worldScreen   :: !SDL.Surface
+  , worldTiles    :: ![Tile]
+  , worldCollideableTiles :: ![Tile]
+  , worldObjects  :: ![Object]
+  , worldHero     :: !Object
+  , worldTextures :: !TextureMap
+  , worldTicks    :: !Integer
+  , worldAiTicks  :: !Integer
+}

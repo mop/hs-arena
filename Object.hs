@@ -11,34 +11,6 @@ import Movemap
 import Animation
 import System.IO.Unsafe (unsafePerformIO)
 
-data Object = Object {
-      objectHp              :: !Integer
-    , objectVelocity        :: !Integer
-    , objectSprite          :: !Sprite
-    , objectWeapons         :: ![Weapon]
-    , objectActiveWeapon    :: !Integer
-    , objectWeaponLastShoot :: !Integer
-    , objectMoveStrategy    :: !MoveStrategy
-  } | 
-  Projectile {
-      projectileVelocity :: !Integer
-    , projectileSprite   :: !Sprite
-    , projectileWeapon   :: !Weapon
-    , projectileStartPos :: !Vector
-    , projectileRemove   :: !Bool
-    , projectileShooter  :: Maybe Object
-  } deriving (Show, Eq)
-
-data Weapon = Weapon {
-    weaponStrength    :: !Integer
-  , weaponSprite      :: !Sprite
-  , weaponRange       :: !Integer
-  , weaponVelocity    :: !Integer
-  , weaponIcon        :: !Integer
-  , weaponCooldown    :: !Integer
-  , weaponHeroSprites :: ![(Direction, Integer)]
-  } deriving (Show, Eq)
-
 modifySprite :: (Sprite -> Sprite) -> Object -> Object
 modifySprite f o@(Object _ _ _ _ _ _ _) = 
                    let sprite' = f (objectSprite o)
@@ -51,8 +23,12 @@ objToSprite :: Object -> Sprite
 objToSprite (Object _ _ spr _ _ _ _) = spr
 objToSprite (Projectile _ spr _ _ _ _) = spr
 
+objToVelocity :: Object -> Integer
+objToVelocity o = if isObject o then objectVelocity o
+                                else projectileVelocity o
+
 instance Moveable_ Object where
-	move o diff = objectDoMove o diff
+	move o diff = objectDoMove o (diff * (fromInteger $ objToVelocity o) / 10)
 	boundingBox = boundingBox . objToSprite
 	direction   = direction . objToSprite
 
@@ -67,12 +43,13 @@ objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy (StopMove:xs) _)) diff =
                                               } 
                     }) diff
 
-objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((MoveTo pos):xs) _)) diff 
-    | vecLength vecDiff <= 1.0 = objectDoMove (o' { objectMoveStrategy = 
+objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((MoveTo pos time owner):xs) f)) diff 
+    | vecLength vecDiff <= 1.0 
+    || time == 0 = objectDoMove (o' { objectMoveStrategy = 
                                                   ms { moveStrategyMoves = xs }
-                                                  }) diff
+                                    }) diff
     | otherwise = modifySprite (flip move diff) $ 
-                    modifySprite (\s -> s { spriteDirection = direction }) o
+                    modifySprite (\s -> s { spriteDirection = direction }) o''
         where   direction = let (Vector x y z) = vecDiff
                             in  Vector (trimToOne x) (trimToOne y) (trimToOne z)
                 trimToOne val | val < (-1.0) = (-1.0)
@@ -82,6 +59,10 @@ objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((MoveTo pos):xs) _)) diff
                 objPosVec = Vector (bboxX objPos) (bboxY objPos) (bboxZ objPos)
                 objPos = spritePosition $ objToSprite o
                 o' = modifySprite (\s -> s { spriteDirection = defaultVector }) o
+                move' = MoveTo pos (dec time) owner
+                dec t | t > 0 = t - 1
+                      | otherwise = t
+                o'' = o { objectMoveStrategy = MoveStrategy (move' : xs) f }
 
 objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((SetGraphic surface):xs) _)) diff =
         objectDoMove (modifySprite (\s -> s { spriteGraphic = surface }) o') diff
@@ -110,6 +91,12 @@ objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy (StartMove:xs) _)) diff =
                                               } 
                     }) diff
 
+objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((SetVelocity vel):xs) _)) diff =
+    objectDoMove (o { objectMoveStrategy = ms { moveStrategyMoves = xs
+                                              } 
+                    , objectVelocity = vel
+                    }) diff
+
 objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((SetTextureOffset offset):xs) _)) diff =
         objectDoMove (modifySprite (\s -> s { spriteTextureOffset = offset }) o') diff
     where   strategy = ms { moveStrategyMoves = xs
@@ -127,8 +114,10 @@ killProjectile p = p { projectileRemove = True }
 bounceMovement :: Object -> Object -> MoveLogger ()
 bounceMovement obj projectile = do
     stopMoving
-    startAnimation (fixedCharAnimator direction)
-    moveTo $ objectPosition' `vecPlus` projectileDisplace
+    startAnimation (fixedWoundedCharAnimator direction)
+    setVelocity ((projectileVelocity projectile) * 2)
+    aniMoveToTimed (objectPosition' `vecPlus` projectileDisplace) $ projectileVelocity projectile
+    setVelocity (objectVelocity obj)
     startAnimation (spriteAnimator $ objToSprite obj)
     startMoving
     where   direction = vectorToDirection $ spriteDirection $ objToSprite obj
@@ -136,8 +125,8 @@ bounceMovement obj projectile = do
             objectPosition' = let (BBox x y z w h) = objectPosition
                               in  Vector x y z
             projectileDirection = spriteDirection $ objToSprite projectile 
-            projectileDisplace = projectileDirection `vecMul`
-                                    (projectileVelocity projectile * 10)
+            projectileDisplace = projectileDirection `vecMul` (2 + velAddition)
+            velAddition = round $ fromInteger (projectileVelocity projectile) * 0.05
 
 bounceBackObject obj projectile = 
         obj { objectMoveStrategy = strategy' }

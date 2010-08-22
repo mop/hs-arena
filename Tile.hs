@@ -24,6 +24,9 @@ bboxToRect (BBox x y _ w h) = SDL.Rect x' y' w' h'
             w' = round w
             h' = round h
 
+bboxToVector :: BBox -> Vector
+bboxToVector (BBox x y z w h) = Vector x y z
+
 doDraw :: SDL.Rect -> SDL.Rect -> PlotDataMIO ()
 doDraw texRect bgRect = do
     bg  <- fmap plotBackground $ ask
@@ -54,6 +57,9 @@ zeroVec (Vector x y _) = x == 0.0 && y == 0.0
 vecMul :: Vector -> Integer -> Vector
 vecMul (Vector x y z) val = Vector (x * val') (y * val') (z * val')
     where val' = fromInteger val
+
+vecMulD :: Vector -> Double -> Vector
+vecMulD (Vector x y z) val = Vector (x * val) (y * val) (z * val)
 
 vecPlus :: Vector -> Vector -> Vector
 vecPlus (Vector x1 y1 z1) (Vector x2 y2 z2) = 
@@ -113,6 +119,7 @@ instance Moveable_ Sprite where
     move spr diff = spr'
         where   spr' = spr { spritePosition = pos'
                            , spriteAnimator = animator'
+                           , spriteMoveDiff = diff
                            }
                 pos' = (spritePosition spr) { bboxX = x + dirX * diff
                                             , bboxY = y + dirY * diff

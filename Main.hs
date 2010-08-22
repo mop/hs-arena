@@ -14,48 +14,63 @@ import Object
 import Animation
 import Movemap
 import MapLoader
+import AI
 
-type TextureMap = M.Map Integer SDL.Surface
-
-data World = World {
-    worldScreen   :: !SDL.Surface
-  , worldTiles    :: ![Tile]
-  , worldCollideableTiles :: ![Tile]
-  , worldObjects  :: ![Object]
-  , worldHero     :: !Object
-  , worldTextures :: !TextureMap
-  , worldTicks    :: !Integer
-}
-
+worldTile :: String
 worldTile  = "images/tileset1.png"
+crossPath :: String
+crossPath  = "images/cross.png"
+heroSprite :: String
 heroSprite = "images/hero.png"
+foeSprite :: String
 foeSprite = "images/foe-1.png"
+hpBar :: String
 hpBar = "images/hp-bar.png"
+hpBorder :: String
 hpBorder = "images/hps.png"
+arrowLeft :: String
 arrowLeft = "images/arrow-left.png"
+arrowRight :: String
 arrowRight = "images/arrow-right.png"
+sword :: String
 sword = "images/sword.png"
+swordSprite :: String
 swordSprite = "images/sword-sprite.png"
+heroSwordUp :: String
 heroSwordUp = "images/hero-sword-up.png"
+heroSwordDown :: String
 heroSwordDown = "images/hero-sword-down.png"
+heroSwordLeft :: String
 heroSwordLeft = "images/hero-sword-left.png"
+heroSwordRight :: String
 heroSwordRight = "images/hero-sword-right.png"
 
+heroGraphicId :: Integer
 heroGraphicId = 2
+hpBarId :: Integer
 hpBarId = 4
+hpBorderId :: Integer
 hpBorderId = 5
+arrowLeftId :: Integer
 arrowLeftId = 6
+arrowRightId :: Integer
 arrowRightId = 7
+swordId :: Integer
 swordId = 8
+swordSpriteId :: Integer
 swordSpriteId = 9
+heroSwordUpId :: Integer
 heroSwordUpId = 10
+heroSwordDownId :: Integer
 heroSwordDownId = 11
+heroSwordLeftId :: Integer
 heroSwordLeftId = 12
+heroSwordRightId :: Integer
 heroSwordRightId = 13
 
 loadGraphics :: IO TextureMap
 loadGraphics = do
-    worldGraphic <- SDLi.load worldTile
+    crossGraphic <- SDLi.load crossPath
     heroGraphic  <- SDLi.load heroSprite
     foeGraphic  <- SDLi.load foeSprite
     hpBarGraphic  <- SDLi.load hpBar
@@ -68,7 +83,7 @@ loadGraphics = do
     heroSwordDownGraphic <- SDLi.load heroSwordDown
     heroSwordLeftGraphic <- SDLi.load heroSwordLeft
     heroSwordRightGraphic <- SDLi.load heroSwordRight
-    return $ M.fromList [ (1, worldGraphic)
+    return $ M.fromList [ (1, crossGraphic)
                         , (2, heroGraphic)
                         , (3, foeGraphic)
                         , (hpBarId, hpBarGraphic)
@@ -82,20 +97,6 @@ loadGraphics = do
                         , (heroSwordLeftId, heroSwordLeftGraphic)
                         , (heroSwordRightId, heroSwordRightGraphic)
                         ]
-    
-makeDefaultTile :: Integer -> Integer -> Tile
-makeDefaultTile x y = Tile 0 1 box 0.0
-    where   box :: BBox
-            box = BBox ((fromInteger x) * 16.0) ((fromInteger y) * 16.0) 0.0 16.0 16.0
-
-genBlockTile :: Integer -> Integer -> Tile
-genBlockTile x y = Tile 1 1 box 1.0
-    where   box :: BBox
-            box = BBox ((fromInteger x) * 16.0) ((fromInteger y) * 16.0) 1.0 16.0 16.0
-
-genMap :: [Tile]
-genMap = [ makeDefaultTile x y | x <- [0..19], y <- [0..14] ] ++
-         [ genBlockTile 1 2, genBlockTile 2 3 ]
 
 heroSwordAnimations :: [(Direction, Integer)]
 heroSwordAnimations = [ (DirUp, heroSwordUpId)
@@ -104,23 +105,23 @@ heroSwordAnimations = [ (DirUp, heroSwordUpId)
                       , (DirRight, heroSwordRightId)
                       ]
 
+weaponSword = Weapon 5 wSprite 1 10 swordId 600 heroSwordAnimations
+wSprite = defaultSprite { spriteId = 100
+                        , spriteGraphic = swordSpriteId
+                        , spriteTextureOffset = defaultCharOffset
+                        , spriteAnimator = charAnimator
+                        } 
 genHero :: Object
-genHero = Object 100 10 heroSprite [weaponSword] 0 0 defaultMoveStrategy
-    where   heroSprite = Sprite 1 2 position defaultVector defaultVector defaultCharOffset heroAnimator
+genHero = Object 100 10 hSprite [weaponSword] 0 0 defaultMoveStrategy
+    where   hSprite = Sprite 1 2 position defaultVector defaultVector 0.0 defaultCharOffset heroAnimator
             position = BBox 32.0 64.0 1.0 16.0 16.0
-            weaponSword = Weapon 5 weaponSprite 1 1 swordId 600 heroSwordAnimations
-            weaponSprite = defaultSprite { spriteId = 100
-                                         , spriteGraphic = swordSpriteId
-                                         -- , spriteTextureOffset = defaultCharOffset
-                                         -- , spriteAnimator = charAnimator
-                                         } 
 
 heroSwordSlayAnimation :: Animator
 heroSwordSlayAnimation = frameAnimator 96 96 10 2 0 0
 
 genFoe :: Object
-genFoe = Object 100 1 foeSprite [] 0 0 defaultMoveStrategy
-    where   foeSprite = Sprite 2 3 position defaultVector defaultVector defaultCharOffset charAnimator
+genFoe = Object 100 3 fSprite [weaponSword] 0 0 defaultMoveStrategy
+    where   fSprite = Sprite 2 3 position defaultVector defaultVector 0.0 defaultCharOffset charAnimator
             position = BBox 64.0 64.0 1.0 16.0 16.0
             
 render :: World -> IO ()
@@ -130,9 +131,9 @@ render world = forM graphics drawGraphic >> return ()
             sprites = (sprite $ objectSprite $ worldHero world) : 
                       (map (sprite . objToSprite) $ worldObjects world) 
             screen = worldScreen world
-            theTexture elem = M.lookup (texture elem) (worldTextures world)
-            plotData elem = PlotData screen (fromJust (theTexture elem))
-            drawGraphic elem = runReaderT (draw elem) (plotData elem)
+            theTexture s = M.lookup (texture s) (worldTextures world)
+            plotData s = PlotData screen (fromJust (theTexture s))
+            drawGraphic s = runReaderT (draw s) (plotData s)
 
 renderControls :: World -> IO ()
 renderControls world = SDL.blitSurface hpBorderSurface Nothing screen (Just borderRect)
@@ -155,14 +156,15 @@ renderControls world = SDL.blitSurface hpBorderSurface Nothing screen (Just bord
             arrowRightRect = SDL.Rect 160 212 16 16
             hpRect hp = SDL.Rect (fromInteger hp + 217 - 1) 214 1 16
 
+tilesetIds :: [Integer]
 tilesetIds = [500..]
 
 loadMap :: String -> World -> IO World
 loadMap filename world = do
     sets <- loadTilesets filename
     let zippedTiles = zip tilesetIds sets
-    let graphics = map (\(id, (ts, surface)) -> (id, surface)) zippedTiles
-    let tilesets = map (\(id, (ts, surface)) -> (id, ts)) zippedTiles
+    let graphics = map (\(i, (_, surface)) -> (i, surface)) zippedTiles
+    let tilesets = map (\(i, (ts, _)) -> (i, ts)) zippedTiles
     tiles <- loadTiles filename tilesets
 
     return (world { worldTiles = tiles
@@ -176,11 +178,11 @@ foreign export ccall "haskell_main" main :: IO ()
 main :: IO ()
 main = do
     SDL.init [SDL.InitEverything]
-    SDL.setVideoMode 320 240 32 []
+    _ <- SDL.setVideoMode 320 240 32 []
     screen <- SDL.getVideoSurface
     textures <- loadGraphics
     ticks <- SDL.getTicks >>= return . fromIntegral
-    let world = World screen [] [] [genFoe] genHero textures ticks
+    let world = World screen [] [] [genFoe] genHero textures ticks ticks
     world' <- loadMap "images/map.tmx" world
 
     eventHandler world'
@@ -189,11 +191,19 @@ main = do
 handleCollissions :: Object -> [Moveable] -> Object
 handleCollissions obj xs | not . isObject $ obj = obj 
                          | otherwise = foldl' handleCollissions' obj xs
-    where   handleCollissions' obj moveable = modifySprite (\spr -> 
+    where   handleCollissions' o moveable = modifySprite (\spr -> 
                                                 spr { 
                                                     spritePosition = spritePos spr moveable 
-                                                }) obj
-            spritePos spr moveable = collissionResponse (spriteDirection spr) 
+                                                }) o'
+                where   o' | isCollission objBox movBox = o { objectMoveStrategy = strat }
+                           | otherwise = o
+                        objBox = boundingBox o
+                        movBox = boundingBox moveable
+                        strat = let (MoveStrategy moves flag) = objectMoveStrategy o
+                                    moves' = dropWhile (isAiMove) moves
+                                in (MoveStrategy moves' flag)
+                        
+            spritePos spr moveable = collissionResponse (spriteDirection spr `vecMulD` spriteMoveDiff spr) 
                                                         (spritePosition spr) 
                                                         (boundingBox moveable)
 
@@ -204,32 +214,73 @@ generateObjectList objects = map makeTuple objects
                                  (spriteId . objToSprite) object) objects
                                )
 
+aiThreshold :: Integer
+aiThreshold = 1000
+
+resetAi :: World -> Integer -> World
+resetAi world ticks = world { worldObjects = objects
+                            , worldAiTicks = ticks
+                            }
+    where   objects = map deleteObjectAiMovements $ worldObjects world
+            deleteObjectAiMovements obj 
+                | not $ isObject obj = obj
+                | otherwise = let (MoveStrategy moves flag) = objectMoveStrategy obj
+                                  moves' = filter (not . isAiMove) moves
+                              in obj { objectMoveStrategy = MoveStrategy moves' flag }
+
 eventHandler :: World -> IO ()
 eventHandler world = do
     render world
     renderControls world
+    mapM (renderPath world) $ filter isObject $ worldObjects world
     SDL.flip $ worldScreen world
     SDL.delay 10
 
     ticks <- SDL.getTicks >>= return . fromIntegral
     let diff = 0.080 * (fromInteger $ ticks - (worldTicks world))
 
-    let objects'      = map (flip move diff) $ worldObjects world
+    let world' = if (ticks - worldAiTicks world) > aiThreshold then resetAi world ticks
+                                                               else world
+
+    let objects'      = map (flip move diff) $ worldObjects world'
     let hero'         = move (worldHero world) diff
-    let moveableTiles = (map Moveable $ worldCollideableTiles world)
+    let moveableTiles = (map Moveable $ worldCollideableTiles world')
     let objectList    = generateObjectList $ hero' : objects'
     let (hero'' : objects'') = map (uncurry handleObjectEvents) objectList
     let objectList'   = generateObjectList $ hero'' : objects''
     let (hero''' : objects''') = map (\(s, ss) -> handleCollissions s (
                             moveableTiles ++ (map Moveable $ filter isObject ss))) objectList'
 
-    let world' = world { worldObjects = rejectDead objects'''
-                       , worldHero    = hero'''
-                       , worldTicks   = ticks
-                       }
+    let world'' = world' { worldObjects = rejectDead objects'''
+                         , worldHero    = hero'''
+                         , worldTicks   = ticks
+                         }
+
+    let objects'''' = map (makeMove world'') objects'''
+    let world''' = world'' { worldObjects = rejectDead objects'''' }
 
     e <- SDL.pollEvent
-    handleEvent world' e
+    handleEvent (handleAttacks world''') e
+
+crossSprite ::Vector -> Sprite
+crossSprite (Vector x y z) = Sprite (-1) 1 position dir pDir 0.0 offset animator
+    where   position = BBox x y z 16.0 16.0
+            dir = defaultVector
+            pDir = defaultVector
+            offset = defaultVector
+            animator = frameAnimator 16 16 0 0 0 0
+
+renderPath :: World -> Object -> IO ()
+renderPath world obj = mapM_ drawGraphic sprites
+    where   sprites = map (crossSprite . moveToVec) paths
+            paths = filter isAiMove moves
+            moves = moveStrategyMoves strategy
+            strategy = objectMoveStrategy obj
+            moveToVec (MoveTo pos _ _) = pos
+            theTexture s = M.lookup (texture s) (worldTextures world)
+            screen = worldScreen world
+            plotData s = PlotData screen (fromJust (theTexture s))
+            drawGraphic s = runReaderT (draw s) (plotData s)
 
 withHeroDirection :: World -> (Vector -> Vector) -> World
 withHeroDirection world fun = world { worldHero = hero' }
@@ -245,13 +296,14 @@ setVecX x v = v { vecX = x }
 setVecY :: Double -> Vector -> Vector
 setVecY y v = v { vecY = y }
 
-swordDirToGraphicId DirUp = heroSwordUpId
-swordDirToGraphicId DirDown = heroSwordDownId
-swordDirToGraphicId DirLeft = heroSwordLeftId
+swordDirToGraphicId :: Direction -> Integer
+swordDirToGraphicId DirUp    = heroSwordUpId
+swordDirToGraphicId DirDown  = heroSwordDownId
+swordDirToGraphicId DirLeft  = heroSwordLeftId
 swordDirToGraphicId DirRight = heroSwordRightId
 
 heroSwordSlay :: World -> Direction -> MoveLogger ()
-heroSwordSlay world dir = do
+heroSwordSlay _ dir = do
     stopMoving
     setGraphic (swordDirToGraphicId dir)
     setTextureOffset defaultBattleOffset
@@ -278,21 +330,22 @@ shootProjectile world | canShoot  = world { worldObjects = projectile : objects
                                           }
                       | otherwise = world
     where   objects = worldObjects world
-            projectile = Projectile 1 sprite activeWeapon position False (Just hero)
+            projectile = Projectile (weaponVelocity activeWeapon) spr activeWeapon 
+                                     position False (Just hero)
             hero = worldHero world
             hero' = (heroSetSwordSlay world (vectorToDirection direction))
                          { objectWeaponLastShoot = worldTicks world
                          }
-            sprite = (weaponSprite activeWeapon) { spriteDirection = direction'
-                                                 , spritePosition = spritePosition heroSprite
-                                                 }
-            heroSprite = objectSprite hero
+            spr = (weaponSprite activeWeapon) { spriteDirection = direction'
+                                              , spritePosition = spritePosition hSprite
+                                              }
+            hSprite = objectSprite hero
             activeWeapon = (objectWeapons hero) !!  (fromInteger $ objectActiveWeapon hero)
             position = Vector (bboxX bbox) (bboxY bbox) 2.0
             bbox = boundingBox hero
-            heroDirection = spriteDirection heroSprite
+            heroDirection = spriteDirection hSprite
             direction 
-                | zeroVec $ heroDirection = spritePrevDirection heroSprite
+                | zeroVec $ heroDirection = spritePrevDirection hSprite
                 | otherwise = heroDirection
             direction' = direction `vecMul` (weaponVelocity activeWeapon)
             canShoot = weaponCooldown activeWeapon < diffTicks

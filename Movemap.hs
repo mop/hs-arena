@@ -1,4 +1,18 @@
 module Movemap
+    ( stopMoving
+    , startMoving
+    , moveTo
+    , moveToTimed
+    , aniMoveTo
+    , aiMoveTo
+    , aniMoveToTimed
+    , aiMoveToTimed
+    , setGraphic
+    , setTextureOffset
+    , setVelocity
+    , startAnimation
+    , waitAnimation
+    )
 where
 
 import Types
@@ -21,14 +35,32 @@ stopMoving = setMove StopMove
 startMoving :: MoveLogger ()
 startMoving = setMove StartMove
 
-moveTo :: Vector -> MoveLogger ()
-moveTo = setMove . MoveTo
+moveTo :: Vector -> MoveOwner -> MoveLogger ()
+moveTo v o = setMove $ MoveTo v (-1) o
+
+aniMoveTo :: Vector -> MoveLogger ()
+aniMoveTo = flip moveTo Ani
+
+aiMoveTo :: Vector -> MoveLogger ()
+aiMoveTo = flip moveTo AI
+
+moveToTimed :: Vector -> Integer -> MoveOwner -> MoveLogger ()
+moveToTimed v i o = setMove $ MoveTo v i o
+
+aniMoveToTimed :: Vector -> Integer -> MoveLogger ()
+aniMoveToTimed v i = moveToTimed v i Ani
+
+aiMoveToTimed :: Vector -> Integer -> MoveLogger ()
+aiMoveToTimed v i = moveToTimed v i AI
 
 setGraphic :: Integer -> MoveLogger ()
 setGraphic = setMove . SetGraphic 
 
 setTextureOffset :: Vector -> MoveLogger ()
 setTextureOffset = setMove . SetTextureOffset
+
+setVelocity :: Integer -> MoveLogger ()
+setVelocity = setMove . SetVelocity
 
 startAnimation :: Animator -> MoveLogger ()
 startAnimation = setMove . SetAnimation 

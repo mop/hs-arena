@@ -6,6 +6,8 @@ import Tile
 
 import qualified Graphics.UI.SDL as SDL
 
+import System.IO.Unsafe (unsafePerformIO)
+
 defaultCharOffset :: Vector
 defaultCharOffset = Vector 4.0 16.0 0.0
 
@@ -15,8 +17,12 @@ defaultBattleOffset = Vector 40.0 48.0 0.0
 charAnimator = CustomAnimator charAnimation charMoveNext 4 10 0 0
 fixedCharAnimator :: Direction -> Animator
 fixedCharAnimator dir = CustomAnimator (fixedCharAnimation dir) charMoveNext 4 10 0 0
+fixedWoundedCharAnimator :: Direction -> Animator
+fixedWoundedCharAnimator dir = CustomAnimator (fixedWoundedCharAnimation dir) 
+                                               frameMoveNextStop 5 1 0 0
 frameAnimator width height = CustomAnimator (frameAnimation width height) frameMoveNext 
 heroAnimator = CustomAnimator heroAnimation charMoveNext 8 5 0 0
+
 
 heroAnimation :: Sprite -> SDL.Rect
 heroAnimation sprite = SDL.Rect xTexCoord yTexCoord 24 32
@@ -36,6 +42,15 @@ frameAnimation width height sprite = SDL.Rect xTexCoord yTexCoord width height
     where   yTexCoord = 0
             xTexCoord = width * (fromInteger $ animatorCount animator)
             animator = spriteAnimator sprite
+
+fixedWoundedCharAnimation :: Direction -> Sprite -> SDL.Rect
+fixedWoundedCharAnimation dir sprite = SDL.Rect xTexCoord yTexCoord 24 32
+    where   yTexCoord = directionToYTex dir
+            xTexCoord = 72 + (24 * fromInteger count)
+            animator  = spriteAnimator sprite
+            direction = spriteDirection sprite
+            count | animatorCount animator < 3 = animatorCount animator
+                  | otherwise = 4 - animatorCount animator
 
 fixedCharAnimation :: Direction -> Sprite -> SDL.Rect
 fixedCharAnimation dir sprite = SDL.Rect xTexCoord yTexCoord 24 32
@@ -81,6 +96,20 @@ frameMoveNext spr = (spriteAnimator spr) { animatorFrameCount = frameCount'
             frameCount = animatorFrameCount $ spriteAnimator spr 
             maxCount = animatorMaxCount $ spriteAnimator spr
             frameLimit = animatorMaxFrameCount $ spriteAnimator spr
+
+frameMoveNextStop :: Sprite -> Animator
+frameMoveNextStop spr = (spriteAnimator spr) { animatorFrameCount = frameCount'
+                                             , animatorCount = count' }
+    where   frameCount' = (frameCount + 1) `mod` frameLimit
+            count' |   frameCount == (frameLimit - 1) 
+                    && (count + 1) < maxCount = (count + 1) `mod` maxCount
+                   | otherwise = count
+            dir = spriteDirection spr
+            count = animatorCount $ spriteAnimator spr 
+            frameCount = animatorFrameCount $ spriteAnimator spr 
+            maxCount = animatorMaxCount $ spriteAnimator spr
+            frameLimit = animatorMaxFrameCount $ spriteAnimator spr
+
 
 directionToYTex :: Direction -> Int
 directionToYTex DirUp = 0
