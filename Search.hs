@@ -1,6 +1,7 @@
 module Search
   ( Map(..)
   , search
+  , Position
   )
 where
 

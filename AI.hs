@@ -47,8 +47,8 @@ markCollissionWith flag cols w _ (x, y) = let (_:xs) = drop index cols
 
 moveableCoords :: Moveable_ a => a -> (Int, Int)
 moveableCoords m = (x, y)
-    where   x = floor $ (bboxX $ boundingBox m) / tileSize
-            y = floor $ (bboxY $ boundingBox m) / tileSize
+    where   x = round $ (bboxX $ boundingBox m) / tileSize
+            y = round $ (bboxY $ boundingBox m) / tileSize
 
 canCollide :: Moveable_ a => a -> Bool
 canCollide obj = (bboxZ $ boundingBox obj) == 1.0
@@ -67,8 +67,8 @@ constructMap world = Map width height collissions'
 objectPosition :: Object -> (Integer, Integer)
 objectPosition obj = (x, y)
     where   bbox = boundingBox obj
-            x = floor $ bboxX bbox / tileSize
-            y = floor $ bboxY bbox / tileSize
+            x = round $ bboxX bbox / tileSize
+            y = round $ bboxY bbox / tileSize
 
 heroPosition :: World -> (Integer, Integer)
 heroPosition = objectPosition . worldHero
@@ -138,6 +138,26 @@ handleAttacks world = world { worldObjects = projectiles ++ inRangeObjs' ++ obje
             hero = worldHero world
             isHeroInRange obj = objectInRange obj $ worldHero world
 
+isDiagonalMove :: Position -> Position -> Bool
+isDiagonalMove (x, y) (x', y') | x == -1 && y == -1 = False -- error
+                               | otherwise = abs diffX > 0 && diffX == diffY
+    where   diffX = x - x'
+            diffY = y - y'
+
+linearizeDiagonalMove :: Map -> Position -> Position -> [Position]
+linearizeDiagonalMove m p1@(x, y) p2@(x', y') 
+    | not $ isDiagonalMove p1 p2 = []
+    | otherwise = if isColPos1 then [pos1]
+                               else [pos2]
+    where   collissions = mapCollissions m
+            width = mapWidth m
+            pos1 = (x, y')
+            pos2 = (x', y)
+            isColPos1 = collissions !! (tileAt (fst pos1) (snd pos2))
+            isColPos2 = collissions !! (tileAt (fst pos2) (snd pos1))
+            tileAt a b = fromInteger $ width * b + a
+                                        
+
 makeMove :: World -> Object -> Object
 makeMove world obj | not $ isObject obj = obj
                    | not $ isAllowedMove obj = obj
@@ -152,6 +172,7 @@ makeMove world obj | not $ isObject obj = obj
                                  cols' = unmarkCollission cols width height (x', y')
                              in collissionMap { mapCollissions = cols' }
             waypoints = search collissionMap' objPos heroPos
-            movements = fst . unMoveLogger $ mapM (aiMoveTo . toVec) $ drop 1 waypoints
+            waypoints' = waypoints ++ linearizeDiagonalMove collissionMap' (last waypoints) heroPos
+            movements = fst . unMoveLogger $ mapM (aiMoveTo . toVec) $ drop 1 waypoints'
             objPos = objectPosition obj
             heroPos = heroPosition world
