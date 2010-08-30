@@ -19,6 +19,9 @@ tileSize = 16.0
 rangeDistance :: Integer
 rangeDistance = 4
 
+fleeDistance :: Integer
+fleeDistance = 3
+
 worldWidth :: World -> Integer
 worldWidth world = floor $ (maxXTile - minXTile) / tileSize
     where   minXTile = minimum $ map (bboxX . tilePosition) (worldTiles world)
@@ -223,24 +226,36 @@ makeSearch world obj target = maybe [] id movements
                 
 
 makeRangedMove :: World -> Object -> Object
-makeRangedMove world obj | not $ isObject obj = obj
-                         | not $ isAllowedMove obj = obj
-                         | otherwise = 
-                let MoveStrategy moves canMove = objectMoveStrategy obj
-                in obj { objectMoveStrategy = MoveStrategy (shortestMove ++ moves) canMove }
+makeRangedMove world obj = makeShortestTargetsMove world obj targets
     where   heroPos = heroPosition world
-            objPos = objectPosition obj
             targets = [ heroPos `tPlus` (rangeDistance, 0)
                       , heroPos `tPlus` (-rangeDistance, 0)
                       , heroPos `tPlus` (0, rangeDistance)
                       , heroPos `tPlus` (0, -rangeDistance)
                       ]
+
+makeShortestTargetsMove :: World -> Object -> [Position] -> Object
+makeShortestTargetsMove world obj targets | not $ isObject obj = obj
+                                          | not $ isAllowedMove obj = obj
+                                          | otherwise = 
+                let MoveStrategy moves canMove = objectMoveStrategy obj
+                in obj { objectMoveStrategy = MoveStrategy (shortestMove ++ moves) canMove }
+    where   objPos = objectPosition obj
             targetMoves = map (makeSearch world obj) targets
             possibleMoves = filter (not . null) targetMoves
             shortestMove | isObjOnDest || null possibleMoves = []
                          | otherwise = minimumBy (\a b -> compare (length a)
                                                      (length b)) possibleMoves
             isObjOnDest = any (== objPos) targets
+
+makeFleeingMove :: World -> Object -> Object
+makeFleeingMove world obj = makeShortestTargetsMove world obj targets
+    where   targets = [ heroPos `tPlus` ( fleeDistance,  fleeDistance)
+                      , heroPos `tPlus` (-fleeDistance,  fleeDistance)
+                      , heroPos `tPlus` (-fleeDistance, -fleeDistance)
+                      , heroPos `tPlus` ( fleeDistance, -fleeDistance)
+                      ]
+            heroPos = heroPosition world
 
 
 makeNonRangedMove :: World -> Object -> Object
@@ -253,4 +268,4 @@ makeNonRangedMove world obj | not $ isObject obj = obj
             heroPos = heroPosition world
 
 makeMove :: World -> Object -> Object
-makeMove world obj = makeRangedMove world obj
+makeMove world obj = makeFleeingMove world obj
