@@ -116,6 +116,10 @@ newtype MoveLogger a = MoveLogger { unMoveLogger :: ([Move], a) }
 defaultMoveStrategy :: MoveStrategy
 defaultMoveStrategy = MoveStrategy [DefaultMove] True
 
+data ItemType = ItemHeart Integer
+              | ItemArrow Integer 
+              deriving (Show, Eq)
+
 data Object = Object {
       objectHp              :: !Integer
     , objectVelocity        :: !Integer
@@ -134,6 +138,11 @@ data Object = Object {
     , projectileRemove   :: !Bool
     , projectileShooter  :: Maybe Object
     , projectileStart    :: !Integer
+  } | 
+  Item {
+      itemSprite :: !Sprite
+    , itemTime   :: !Integer
+    , itemType   :: !ItemType
   } deriving (Show, Eq)
 
 data Weapon = Weapon {

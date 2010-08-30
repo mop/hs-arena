@@ -6,6 +6,7 @@ import Data.List (foldl')
 import Control.Monad (forM)
 import Control.Monad.Reader (runReaderT)
 import Maybe (fromJust)
+import Random (randomIO)
 
 import Types
 import Tile
@@ -69,6 +70,10 @@ rockSprite :: String
 rockSprite = "images/rock.png"
 rockIconSprite :: String
 rockIconSprite = "images/rock-icon.png"
+itemHeartSprite :: String
+itemHeartSprite = "images/item-heart.png"
+itemArrowSprite :: String
+itemArrowSprite = "images/item-arrow.png"
 
 heroGraphicId :: Integer
 heroGraphicId = 2
@@ -116,6 +121,10 @@ rockSpriteId :: Integer
 rockSpriteId = 23
 rockIconSpriteId :: Integer
 rockIconSpriteId = 24
+itemHeartId :: Integer
+itemHeartId = 25
+itemArrowId :: Integer
+itemArrowId = 26
 
 loadGraphics :: IO TextureMap
 loadGraphics = do
@@ -143,6 +152,8 @@ loadGraphics = do
     digitsSpriteGraphic <- SDLi.load digitsSprite
     rockSpriteGraphic <- SDLi.load rockSprite
     rockIconSpriteGraphic <- SDLi.load rockIconSprite
+    itemHeartSpriteGraphic <- SDLi.load itemHeartSprite
+    itemArrowSpriteGraphic <- SDLi.load itemArrowSprite
     return $ M.fromList [ (1, crossGraphic)
                         , (heroGraphicId, heroGraphic)
                         , (foeGraphicId, foeGraphic)
@@ -167,6 +178,8 @@ loadGraphics = do
                         , (digitsSpriteId, digitsSpriteGraphic)
                         , (rockSpriteId, rockSpriteGraphic)
                         , (rockIconSpriteId, rockIconSpriteGraphic)
+                        , (itemHeartId, itemHeartSpriteGraphic)
+                        , (itemArrowId, itemArrowSpriteGraphic)
                         ]
 
 heroSwordAnimations :: [(Direction, Integer)]
@@ -223,6 +236,16 @@ genRangedFoe = Object 10 3 fSprite [weaponStone] 0 0 charAnimator defaultMoveStr
                                     , spriteTextureOffset = defaultCharOffset
                                     , spriteAnimator = charAnimator
                                     }
+
+genHeartItem :: Object
+genHeartItem = Item sprite 300 $ ItemHeart 20
+    where   sprite   = Sprite 60 itemHeartId position defaultVector defaultVector 0.0 defaultVector itemAnimator
+            position = BBox 200.0 80.0 1.0 16.0 16.0
+
+genArrowItem :: Object
+genArrowItem = Item sprite 300 $ ItemArrow 5
+    where   sprite   = Sprite 61 itemArrowId position defaultVector defaultVector 0.0 defaultVector itemAnimator
+            position = BBox 100.0 100.0 1.0 16.0 16.0
                 
 render :: World -> IO ()
 render world = forM graphics drawGraphic >> return ()
@@ -232,8 +255,9 @@ render world = forM graphics drawGraphic >> return ()
                       (map (sprite . objToSprite) $ drawObjects) 
             objects = filter isObject $ worldObjects world
             projectiles = filter isProjectile $ worldObjects world
+            items = filter isItem $ worldObjects world
             startedProjectiles = filter projectileStarted projectiles
-            drawObjects = objects ++ startedProjectiles
+            drawObjects = objects ++ startedProjectiles ++ items
             anis = map sprite $ worldAnimations world
             screen = worldScreen world
             theTexture s = M.lookup (texture s) (worldTextures world)
@@ -300,11 +324,10 @@ foreign export ccall "haskell_main" main :: IO ()
 main :: IO ()
 main = do
     SDL.init [SDL.InitEverything]
-    _ <- SDL.setVideoMode 320 240 32 []
-    screen <- SDL.getVideoSurface
+    screen <- SDL.setVideoMode 320 240 32 []
     textures <- loadGraphics
     ticks <- SDL.getTicks >>= return . fromIntegral
-    let world = World screen [] [] [genRangedFoe] [] genHero textures ticks ticks defaultVector
+    let world = World screen [] [] [genRangedFoe, genHeartItem] [] genHero textures ticks ticks defaultVector
     world' <- loadMap "images/map.tmx" world
 
     eventHandler world'
@@ -367,6 +390,17 @@ isAnimationFinished :: Sprite -> Bool
 isAnimationFinished spr = animatorCount ani + 1 == animatorMaxCount ani
     where   ani = spriteAnimator spr
 
+numberToItem :: Integer -> Object
+numberToItem num | num < 50 = genHeartItem { itemTime = 0 }
+                 | num >= 50 && num < 80 = genHeartItem
+                 | num >= 80 = genArrowItem
+
+setItemPositionFromObject :: Object -> Object -> Object
+setItemPositionFromObject item obj = item { itemSprite = spr }
+    where   spr = (itemSprite item) { spritePosition = pos }
+            pos = spritePosition $ objToSprite obj
+            
+
 eventHandler :: World -> IO ()
 eventHandler world = do
     render world
@@ -396,9 +430,11 @@ eventHandler world = do
 
     let objects'''' = map (makeMove world'') objects'''
     let deadObjects = filter (\x -> (isDead x) && (isObject x)) objects''''
+    items <- mapM (const $ fmap (numberToItem . (`mod` 100)) randomIO) deadObjects
+    let items' = map (uncurry setItemPositionFromObject) $ zip items deadObjects
     let anis = map (flip move diff) $ worldAnimations world'' ++ map toDeadAnimation deadObjects
 
-    let world''' = world'' { worldObjects    = rejectDead objects'''' 
+    let world''' = world'' { worldObjects    = rejectDead (objects'''' ++ items')
                            , worldAnimations = filter (not .  isAnimationFinished) anis
                            }
     let world'''' = withHeroDirection world''' (const $ worldInput world''') 
@@ -553,19 +589,19 @@ withWorldInput w fun = let v = fun $ worldInput w
 
 withActiveWeapon :: World -> (Integer -> Integer) -> World
 withActiveWeapon w fun = w { worldHero = hero' }
-    where   hero' = (worldHero w) { objectActiveWeapon = id' }
-            id' = fun id
-            id = objectActiveWeapon $ worldHero w
+    where   hero' = (worldHero w) { objectActiveWeapon = idx' }
+            idx' = fun idx
+            idx = objectActiveWeapon $ worldHero w
 
 circleNext :: World -> Integer -> Integer
-circleNext world id = (id + 1) `mod` l
+circleNext world idx = (idx + 1) `mod` l
     where l = fromIntegral $ length $ objectWeapons $ worldHero world
 
 circlePrev :: World -> Integer -> Integer
-circlePrev world id 
-        | id' >= 0 = id'
+circlePrev world idx 
+        | idx' >= 0 = idx'
         | otherwise = l - 1
-    where   id' = id - 1
+    where   idx' = idx - 1
             l = fromIntegral $ length $ objectWeapons $ worldHero world
             
 

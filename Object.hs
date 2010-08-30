@@ -17,14 +17,17 @@ modifySprite f o@(Object _ _ _ _ _ _ _ _) =
 modifySprite f p@(Projectile _ _ _ _ _ _ _) = 
                    let sprite' = f (projectileSprite p)
 				   in p { projectileSprite = sprite' }
+modifySprite f i@(Item spr _ _) = i { itemSprite = f spr }
 
 objToSprite :: Object -> Sprite
 objToSprite (Object _ _ spr _ _ _ _ _) = spr
 objToSprite (Projectile _ spr _ _ _ _ _) = spr
+objToSprite (Item spr _ _) = spr
 
 objToVelocity :: Object -> Integer
-objToVelocity o = if isObject o then objectVelocity o
-                                else projectileVelocity o
+objToVelocity o@(Object _ _ _ _ _ _ _ _) = objectVelocity o
+objToVelocity p@(Projectile _ _ _ _ _ _ _) = projectileVelocity p
+objToVelocity (Item _ _ _) = 0
 
 instance Moveable_ Object where
 	move o diff = objectDoMove o (diff * (fromInteger $ objToVelocity o) / 10)
@@ -35,6 +38,11 @@ objectDoMove :: Object -> Double -> Object
 objectDoMove p@(Projectile  _ _ _ _ _ _ _) diff 
     | projectileStart p > 0 = p { projectileStart = projectileStart p - 1 }
     | otherwise = modifySprite (flip move diff) p
+
+objectDoMove i@(Item _ _ _) diff
+    | itemTime i > 0 = modifySprite (flip move diff) i'
+    | otherwise      = modifySprite (flip move diff) i
+    where   i' = i { itemTime = (itemTime i) - 1 }
 
 objectDoMove o@(Object _ _ _ _ _ _ _ (MoveStrategy (ResetMoves:_) _)) diff =
     objectDoMove (o { objectMoveStrategy = MoveStrategy [DefaultMove] True }) diff
@@ -172,6 +180,22 @@ isOwnProjectile _ _ = False
 projectileStarted :: Object -> Bool
 projectileStarted p = isProjectile p `seq` isProjectile p && projectileStart p <= 0
 
+addItemToHero :: Object -> Object -> Object
+addItemToHero hero (Item _ _ (ItemHeart amount)) = hero'
+    where   hero' = hero { objectHp = hp }
+            hp = min (objectHp hero + amount) 100
+addItemToHero hero (Item _ _ (ItemArrow amount)) = hero'
+    where   hero' = hero { objectWeapons = weapons' }
+            weapons' = map doIncreaseBowAmmo $ objectWeapons hero
+            doIncreaseBowAmmo weapon 
+                | (spriteId . weaponSprite) weapon == 101 = 
+                    weapon { weaponAmmo = ammo' }
+                | otherwise = weapon
+                where   ammo' = min 30 (ammo + amount)
+                        ammo  = weaponAmmo weapon
+
+addItemToHero hero _ = hero
+
 handleObjectEvents :: Object -> [Object] -> Object
 handleObjectEvents target objs = foldl' handleObjectEvents' target objs
     where   handleObjectEvents' obj other 
@@ -191,6 +215,15 @@ handleObjectEvents target objs = foldl' handleObjectEvents' target objs
             handleObjectEvents'' p@(Projectile _ _ _ _ _ _ _) x@(Projectile _ _ _ _ _ _ _) 
                 | projectileStarted p && projectileStarted x = killProjectile p
                 | otherwise = p
+            handleObjectEvents'' i@(Item _ _ _) (Item _ _ _) = i
+            handleObjectEvents'' i@(Item _ _ _) o@(Object _ _ _ _ _ _ _ _) 
+                | isHero o = i { itemTime = 0 }
+                | otherwise = i
+            handleObjectEvents'' o@(Object _ _ _ _ _ _ _ _) i@(Item _ _ _)
+                | isHero o = addItemToHero o i
+                | otherwise = i
+            handleObjectEvents'' p@(Projectile _ _ _ _ _ _ _) i@(Item _ _ _) = p
+            handleObjectEvents'' i@(Item _ _ _) p@(Projectile _ _ _ _ _ _ _) = i
 
 isOutOfScreen :: BBox -> Bool
 isOutOfScreen (BBox x y _ _ _) = x >= 320 || y >= 240 || y < -16 || x < -16
@@ -207,6 +240,7 @@ isDead :: Object -> Bool
 isDead p@(Projectile _ s _ _ r _ _) = r || isOutOfScreen (spritePosition s) 
                                         || isOutOfRange p
 isDead (Object hp _ _ _ _ _ _ _) = hp <= 0
+isDead (Item _ time _) = time <= 0
 
 rejectDead :: [Object] -> [Object]
 rejectDead = filter (not . isDead)
@@ -219,6 +253,9 @@ isProjectile :: Object -> Bool
 isProjectile (Projectile _ _ _ _ _ _ _) = True
 isProjectile _ = False
 
+isItem :: Object -> Bool
+isItem (Item _ _ _) = True
+isItem _ = False
 
 weaponHasEnoughAmmo :: Weapon -> Bool
 weaponHasEnoughAmmo weapon = weaponAmmo weapon /= 0
