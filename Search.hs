@@ -51,9 +51,12 @@ reconstructPath :: M.Map Position Position -> Maybe Position -> [Position]
 reconstructPath m Nothing = []
 reconstructPath m (Just pos) = reconstructPath m (M.lookup pos m) ++ [pos]
 
-search :: Map -> Position -> Position -> [Position]
-search m start goal = doSearch openSet closedSet M.empty g
+search :: Map -> Position -> Position -> Maybe [Position]
+search m start goal = let result = doSearch openSet closedSet M.empty g
+                      in if hasFailed result then Nothing
+                         else Just result
     where   h = distBetween goal 
+            hasFailed result = length result == 1 && head result == (-1, -1)
             openSet   = PQ.insert start (h start) PQ.empty
             closedSet = S.empty
             g = M.fromList [(start, 0.0)]

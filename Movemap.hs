@@ -1,6 +1,7 @@
 module Movemap
     ( stopMoving
     , startMoving
+    , resetMovements
     , moveTo
     , moveToTimed
     , aniMoveTo
@@ -12,6 +13,7 @@ module Movemap
     , setVelocity
     , startAnimation
     , waitAnimation
+    , waitMoving
     )
 where
 
@@ -29,11 +31,16 @@ instance Monad MoveLogger where
 setMove :: Move -> MoveLogger ()
 setMove m = MoveLogger ([m], ())
 
+resetMovements :: MoveLogger ()
+resetMovements = setMove ResetMoves
 stopMoving :: MoveLogger ()
 stopMoving = setMove StopMove
 
 startMoving :: MoveLogger ()
 startMoving = setMove StartMove
+
+waitMoving :: Integer -> MoveLogger ()
+waitMoving = setMove . Wait
 
 moveTo :: Vector -> MoveOwner -> MoveLogger ()
 moveTo v o = setMove $ MoveTo v (-1) o

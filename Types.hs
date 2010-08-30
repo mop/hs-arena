@@ -42,14 +42,20 @@ defaultTile = Tile 0 0 defaultBBox
 defaultTile' = Tile 0 0 defaultBBox { bboxZ = 1.0 }
 
 data Sprite = Sprite {
-    spriteId            :: Integer
-  , spriteGraphic       :: Integer
-  , spritePosition      :: BBox
-  , spriteDirection     :: Vector
-  , spritePrevDirection :: Vector
-  , spriteMoveDiff      :: Double
-  , spriteTextureOffset :: Vector
-  , spriteAnimator      :: Animator
+    spriteId            :: !Integer
+  , spriteGraphic       :: !Integer
+  , spritePosition      :: !BBox
+  , spriteDirection     :: !Vector
+  , spritePrevDirection :: !Vector
+  , spriteMoveDiff      :: !Double
+  , spriteTextureOffset :: !Vector
+  , spriteAnimator      :: !Animator
+} deriving (Show, Eq)
+
+data IntegerSprite = IntegerSprite {
+      integerSpriteNumber   :: !Integer
+    , integerSpritePosition :: !Vector
+    , integerSpriteTexture  :: !Integer
 } deriving (Show, Eq)
 
 data Animator = CustomAnimator { 
@@ -93,9 +99,11 @@ data MoveStrategy = MoveStrategy {
 data MoveOwner = AI | Ani 
     deriving (Show, Eq)
 data Move = DefaultMove 
+          | ResetMoves
           | StopMove
           | StartMove
           | MoveTo Vector Integer MoveOwner
+          | Wait Integer
           | SetVelocity Integer
           | SetGraphic Integer
           | SetAnimation Animator
@@ -115,6 +123,7 @@ data Object = Object {
     , objectWeapons         :: ![Weapon]
     , objectActiveWeapon    :: !Integer
     , objectWeaponLastShoot :: !Integer
+    , objectDefaultAnimator :: !Animator
     , objectMoveStrategy    :: !MoveStrategy
   } | 
   Projectile {
@@ -124,6 +133,7 @@ data Object = Object {
     , projectileStartPos :: !Vector
     , projectileRemove   :: !Bool
     , projectileShooter  :: Maybe Object
+    , projectileStart    :: !Integer
   } deriving (Show, Eq)
 
 data Weapon = Weapon {
@@ -133,10 +143,12 @@ data Weapon = Weapon {
   , weaponVelocity    :: !Integer
   , weaponIcon        :: !Integer
   , weaponCooldown    :: !Integer
+  , weaponFrameStart  :: !Integer
+  , weaponAmmo        :: !Integer
   , weaponHeroSprites :: ![(Direction, Integer)]
   } deriving (Show, Eq)
 
-defaultWeapon = Weapon 0 defaultSprite 0 0 (-1) 0  []
+defaultWeapon = Weapon 0 defaultSprite 0 0 (-1) 0 0 (-1) []
 
 
 type TextureMap = M.Map Integer SDL.Surface
@@ -146,6 +158,7 @@ data World = World {
   , worldTiles            :: ![Tile]
   , worldCollideableTiles :: ![Tile]
   , worldObjects          :: ![Object]
+  , worldAnimations       :: ![Sprite]
   , worldHero             :: !Object
   , worldTextures         :: !TextureMap
   , worldTicks            :: !Integer

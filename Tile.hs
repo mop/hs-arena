@@ -51,6 +51,19 @@ instance Drawable_ Tile where
     zOrder = bboxZ . tilePosition 
     texture = tileGraphic 
 
+instance Drawable_ IntegerSprite where
+    draw intSprite = mapM_ (uncurry doDraw) $ zip texRects bgRects
+        where   texRects = map (\x -> SDL.Rect (fromInteger (x * 8)) 0 8 8) digits
+                bgRects = reverse $ map (\x -> SDL.Rect (startX - x * 8) startY 8 8) [0..(length digits - 1)]
+                startPos = integerSpritePosition intSprite
+                startX = round $ vecX startPos
+                startY = round $ vecY startPos
+                digits :: [Integer]
+                digits = map (read . (: [])) $ show num
+                num = integerSpriteNumber intSprite
+    zOrder = const 5.0
+    texture = integerSpriteTexture
+
 zeroVec :: Vector -> Bool
 zeroVec (Vector x y _) = x == 0.0 && y == 0.0
 

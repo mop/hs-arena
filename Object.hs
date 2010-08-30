@@ -9,19 +9,18 @@ import Collission
 import Maybe (isJust, fromJust)
 import Movemap
 import Animation
-import System.IO.Unsafe (unsafePerformIO)
 
 modifySprite :: (Sprite -> Sprite) -> Object -> Object
-modifySprite f o@(Object _ _ _ _ _ _ _) = 
+modifySprite f o@(Object _ _ _ _ _ _ _ _) = 
                    let sprite' = f (objectSprite o)
 				   in o { objectSprite = sprite' }
-modifySprite f p@(Projectile _ _ _ _ _ _) = 
+modifySprite f p@(Projectile _ _ _ _ _ _ _) = 
                    let sprite' = f (projectileSprite p)
 				   in p { projectileSprite = sprite' }
 
 objToSprite :: Object -> Sprite
-objToSprite (Object _ _ spr _ _ _ _) = spr
-objToSprite (Projectile _ spr _ _ _ _) = spr
+objToSprite (Object _ _ spr _ _ _ _ _) = spr
+objToSprite (Projectile _ spr _ _ _ _ _) = spr
 
 objToVelocity :: Object -> Integer
 objToVelocity o = if isObject o then objectVelocity o
@@ -32,26 +31,42 @@ instance Moveable_ Object where
 	boundingBox = boundingBox . objToSprite
 	direction   = direction . objToSprite
 
-objectDoMove p@(Projectile  _ _ _ _ _ _) diff = modifySprite (flip move diff) p
-objectDoMove o@(Object _ _ _ _ _ _ s@(MoveStrategy (DefaultMove:xs) canMove)) diff 
+objectDoMove :: Object -> Double -> Object
+objectDoMove p@(Projectile  _ _ _ _ _ _ _) diff 
+    | projectileStart p > 0 = p { projectileStart = projectileStart p - 1 }
+    | otherwise = modifySprite (flip move diff) p
+
+objectDoMove o@(Object _ _ _ _ _ _ _ (MoveStrategy (ResetMoves:_) _)) diff =
+    objectDoMove (o { objectMoveStrategy = MoveStrategy [DefaultMove] True }) diff
+
+objectDoMove o@(Object _ _ _ _ _ _ _ (MoveStrategy (DefaultMove:_) canMove)) diff 
     | canMove = modifySprite (flip move diff) o
     | otherwise = o
 
-objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy (StopMove:xs) _)) diff =
+objectDoMove o@(Object _ _ _ _ _ _ _ ms@(MoveStrategy (StopMove:xs) _)) diff =
     objectDoMove (o { objectMoveStrategy = ms { moveStrategyMoves = xs
                                               , moveStrategyCanMove = False 
                                               } 
                     }) diff
 
-objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((MoveTo pos time owner):xs) f)) diff 
+objectDoMove o@(Object _ _ _ _ _ _ _ ms@(MoveStrategy ((Wait f):xs) _)) diff 
+    | f <= 0 = objectDoMove (o { objectMoveStrategy = ms' }) diff
+    | otherwise = modifySprite (\s -> s { spriteAnimator = animator' }) o'
+    where   ms' = ms { moveStrategyMoves = xs }
+            animator' = animatorNext (spriteAnimator spr) spr
+            spr = objToSprite o
+            o' = o { objectMoveStrategy = ms'' }
+            ms'' = ms { moveStrategyMoves = (Wait $ f - 1) : xs }
+
+objectDoMove o@(Object _ _ _ _ _ _ _ ms@(MoveStrategy ((MoveTo pos time owner):xs) f)) diff 
     | vecLength vecDiff <= 1.0 
     || time == 0 = objectDoMove (o' { objectMoveStrategy = 
                                                   ms { moveStrategyMoves = xs }
                                     }) diff
     | otherwise = modifySprite (flip move diff) $ 
-                    modifySprite (\s -> s { spriteDirection = direction }) o''
-        where   direction = let (Vector x y z) = vecDiff
-                            in  Vector (trimToOne x) (trimToOne y) (trimToOne z)
+                    modifySprite (\s -> s { spriteDirection = dir }) o''
+        where   dir = let (Vector x y z) = vecDiff
+                      in  Vector (trimToOne x) (trimToOne y) (trimToOne z)
                 trimToOne val | val < (-1.0) = (-1.0)
                               | val > 1.0 = 1.0
                               | otherwise = val
@@ -64,45 +79,43 @@ objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((MoveTo pos time owner):xs)
                       | otherwise = t
                 o'' = o { objectMoveStrategy = MoveStrategy (move' : xs) f }
 
-objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((SetGraphic surface):xs) _)) diff =
+objectDoMove o@(Object _ _ _ _ _ _ _ ms@(MoveStrategy ((SetGraphic surface):xs) _)) diff =
         objectDoMove (modifySprite (\s -> s { spriteGraphic = surface }) o') diff
     where   strategy = ms { moveStrategyMoves = xs }
             o' = o { objectMoveStrategy = strategy }
 
-objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((SetAnimation ani):xs) _)) diff =
+objectDoMove o@(Object _ _ _ _ _ _ _ ms@(MoveStrategy ((SetAnimation ani):xs) _)) diff =
         objectDoMove (modifySprite (\s -> s { spriteAnimator = ani }) o') diff
     where   strategy = ms { moveStrategyMoves = xs
                           }
             o' = o { objectMoveStrategy = strategy }
-            sprite = objToSprite o
 
-objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy (WaitAnimation:xs) _)) diff
+objectDoMove o@(Object _ _ _ _ _ _ _ ms@(MoveStrategy (WaitAnimation:xs) _)) diff
     | isAniFinished = objectDoMove (o { objectMoveStrategy = strategy }) diff
     | otherwise     = modifySprite (\s -> s { spriteAnimator = animator'}) o
     where   isAniFinished = animatorMaxCount animator - 1 == animatorCount animator
-            animator = spriteAnimator sprite
-            sprite = objToSprite o
+            animator = spriteAnimator spr
+            spr = objToSprite o
             strategy = ms { moveStrategyMoves = xs }
-            animator' = animatorNext (spriteAnimator sprite) sprite
+            animator' = animatorNext (spriteAnimator spr) spr
 
-objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy (StartMove:xs) _)) diff =
+objectDoMove o@(Object _ _ _ _ _ _ _ ms@(MoveStrategy (StartMove:xs) _)) diff =
     objectDoMove (o { objectMoveStrategy = ms { moveStrategyMoves = xs
                                               , moveStrategyCanMove = True 
                                               } 
                     }) diff
 
-objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((SetVelocity vel):xs) _)) diff =
+objectDoMove o@(Object _ _ _ _ _ _ _ ms@(MoveStrategy ((SetVelocity vel):xs) _)) diff =
     objectDoMove (o { objectMoveStrategy = ms { moveStrategyMoves = xs
                                               } 
                     , objectVelocity = vel
                     }) diff
 
-objectDoMove o@(Object _ _ _ _ _ _ ms@(MoveStrategy ((SetTextureOffset offset):xs) _)) diff =
+objectDoMove o@(Object _ _ _ _ _ _ _ ms@(MoveStrategy ((SetTextureOffset offset):xs) _)) diff =
         objectDoMove (modifySprite (\s -> s { spriteTextureOffset = offset }) o') diff
     where   strategy = ms { moveStrategyMoves = xs
                           }
             o' = o { objectMoveStrategy = strategy }
-            sprite = objToSprite o
 
 
 subtractHp :: Object -> Integer -> Object
@@ -111,22 +124,37 @@ subtractHp obj val = obj { objectHp = objectHp obj - (fromInteger val) }
 killProjectile :: Object -> Object
 killProjectile p = p { projectileRemove = True }
 
+isHero :: Object -> Bool
+isHero o = isObject o && ((spriteId $ objToSprite o) == 1)
+
+woundedAnimatorForObject :: Object -> (Direction -> Animator)
+woundedAnimatorForObject obj | isHero obj = fixedWoundedHeroAnimator
+                             | otherwise = fixedWoundedCharAnimator
+defaultSpriteForObject :: Object -> Integer
+defaultSpriteForObject obj | isHero obj = 2 -- heroGraphicId
+                           | otherwise = spriteGraphic $ objToSprite obj
+
 bounceMovement :: Object -> Object -> MoveLogger ()
 bounceMovement obj projectile = do
     stopMoving
-    startAnimation (fixedWoundedCharAnimator direction)
+    setGraphic $ defaultSpriteForObject obj
+    startAnimation ((woundedAnimatorForObject obj) dir)
+    setTextureOffset defaultCharOffset
     setVelocity ((projectileVelocity projectile) * 2)
     aniMoveToTimed (objectPosition' `vecPlus` projectileDisplace) $ projectileVelocity projectile
     setVelocity (objectVelocity obj)
-    startAnimation (spriteAnimator $ objToSprite obj)
+    startAnimation $ objectDefaultAnimator obj
+    setTextureOffset defaultCharOffset -- TODO: make generic like objectDefaultAnimator
     startMoving
-    where   direction = vectorToDirection $ spriteDirection $ objToSprite obj
+    resetMovements
+    where   dir = vectorToDirection $ spriteDirection $ objToSprite obj
             objectPosition = spritePosition $ objToSprite obj
             objectPosition' = bboxToVector objectPosition
             projectileDirection = spriteDirection $ objToSprite projectile 
             projectileDisplace = projectileDirection `vecMul` (2 + velAddition)
             velAddition = round $ fromInteger (projectileVelocity projectile) * 0.05
 
+bounceBackObject :: Object -> Object -> Object
 bounceBackObject obj projectile = 
         obj { objectMoveStrategy = strategy' }
     where   movement = fst $ unMoveLogger (bounceMovement obj projectile)
@@ -136,47 +164,66 @@ bounceBackObject obj projectile =
                                  }
 
 isOwnProjectile :: Object -> Object -> Bool
-isOwnProjectile (Object _ _ s _ _ _ _) (Projectile _ _ _ _ _ o) =
+isOwnProjectile (Object _ _ s _ _ _ _ _) (Projectile _ _ _ _ _ o _) =
     let result = o >>= (return . ((spriteId s) ==) . spriteId . objectSprite)
     in isJust result && fromJust result
 isOwnProjectile _ _ = False
 
+projectileStarted :: Object -> Bool
+projectileStarted p = isProjectile p `seq` isProjectile p && projectileStart p <= 0
+
 handleObjectEvents :: Object -> [Object] -> Object
-handleObjectEvents obj objs = foldl' handleObjectEvents' obj objs
+handleObjectEvents target objs = foldl' handleObjectEvents' target objs
     where   handleObjectEvents' obj other 
                 | isCollission (boundingBox obj) (boundingBox other) =
                     handleObjectEvents'' obj other
                 | otherwise = obj
-            handleObjectEvents'' o@(Object _ _ _ _ _ _ _) p@(Projectile _ _ _ _ _ _)
+            handleObjectEvents'' o@(Object _ _ _ _ _ _ _ _) p@(Projectile _ _ _ _ _ _ _)
                 | isOwnProjectile o p = o
+                | not $ projectileStarted p = o
                 | otherwise           = bounceBackObject (subtractHp o $ 
                                             weaponStrength $ projectileWeapon p) p
-            handleObjectEvents'' p@(Projectile _ _ _ _ _ _) o@(Object _ _ _ _ _ _ _) 
-                | isOwnProjectile o p = p
-                | otherwise           = killProjectile p
-            handleObjectEvents'' o@(Object _ _ _ _ _ _ _) x@(Object _ _ _ _ _ _ _) = o
-            handleObjectEvents'' p@(Projectile _ _ _ _ _ _) x@(Projectile _ _ _ _ _ _) = 
-                killProjectile p
+            handleObjectEvents'' p@(Projectile _ _ _ _ _ _ _) o@(Object _ _ _ _ _ _ _ _) 
+                | isOwnProjectile o p       = p
+                | not $ projectileStarted p = p
+                | otherwise                 = killProjectile p
+            handleObjectEvents'' o@(Object _ _ _ _ _ _ _ _) (Object _ _ _ _ _ _ _ _) = o
+            handleObjectEvents'' p@(Projectile _ _ _ _ _ _ _) x@(Projectile _ _ _ _ _ _ _) 
+                | projectileStarted p && projectileStarted x = killProjectile p
+                | otherwise = p
 
 isOutOfScreen :: BBox -> Bool
-isOutOfScreen (BBox x y z w h) = x >= 320 || y >= 240 || y < -16 || x < -16
+isOutOfScreen (BBox x y _ _ _) = x >= 320 || y >= 240 || y < -16 || x < -16
 
 isOutOfRange :: Object -> Bool
-isOutOfRange (Projectile _ spr weapon start _ _) = fromInteger range < length
+isOutOfRange (Projectile _ spr weapon start _ _ _) = fromInteger range < l
     where   range = weaponRange weapon * 16
-            length = vecLength diff
+            l = vecLength diff
             diff = position `vecMinus` start
             position = bboxToVector $ spritePosition spr
+isOutOfRange _ = True -- should never happen
 
 isDead :: Object -> Bool
-isDead p@(Projectile _ s _ _ r _) = r || isOutOfScreen (spritePosition s) 
-                                      || isOutOfRange p
-isDead (Object hp _ _ _ _ _ _) = hp <= 0
+isDead p@(Projectile _ s _ _ r _ _) = r || isOutOfScreen (spritePosition s) 
+                                        || isOutOfRange p
+isDead (Object hp _ _ _ _ _ _ _) = hp <= 0
 
 rejectDead :: [Object] -> [Object]
 rejectDead = filter (not . isDead)
 
 isObject :: Object -> Bool
-isObject (Object _ _ _ _ _ _ _) = True
+isObject (Object _ _ _ _ _ _ _ _) = True
 isObject _ = False
+
+isProjectile :: Object -> Bool
+isProjectile (Projectile _ _ _ _ _ _ _) = True
+isProjectile _ = False
+
+
+weaponHasEnoughAmmo :: Weapon -> Bool
+weaponHasEnoughAmmo weapon = weaponAmmo weapon /= 0
+
+weaponDecAmmo :: Weapon -> Weapon
+weaponDecAmmo w | weaponHasEnoughAmmo w = w { weaponAmmo = (weaponAmmo w) - 1 }
+                | otherwise = w
 

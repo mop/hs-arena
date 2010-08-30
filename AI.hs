@@ -11,11 +11,13 @@ import Tile
 import Object
 import Movemap
 
-import System.IO.Unsafe (unsafePerformIO)
-import Data.List (nub)
+import Data.List (nub, minimumBy)
 
 tileSize :: Double
 tileSize = 16.0
+
+rangeDistance :: Integer
+rangeDistance = 4
 
 worldWidth :: World -> Integer
 worldWidth world = floor $ (maxXTile - minXTile) / tileSize
@@ -122,21 +124,21 @@ objectInRange obj other =  (xNearlyEqual || yNearlyEqual)
             v2 = bboxToVector b2
             xNearlyEqual = abs (vecX delta) < tileSize
             yNearlyEqual = abs (vecY delta) < tileSize
-            lengthInRange = vecLength delta <= (fromInteger $ (objectWeaponRange obj + 1) * 16) + 8.0
+            longestSide = max (abs $ vecX delta) (abs $ vecY delta)
+            lengthInRange = longestSide <= (fromInteger $ (objectWeaponRange obj + 1) * 16) + 2.0
 
 shootProjectileToObject :: Object -> Object -> Object
-shootProjectileToObject obj other = Projectile velocity spr weapon pos False (Just obj)
+shootProjectileToObject obj _ = Projectile velocity spr weapon pos False (Just obj) start
     where   velocity = maybe 0 weaponVelocity (objectActiveWeapon' obj)
             spr = maybe defaultSprite (\w -> 
-                    (weaponSprite w) { spriteDirection = dir'
+                    (weaponSprite w) { spriteDirection = dir
                                      , spritePosition = objPosition
                                      }) $ objectActiveWeapon' obj
+            start = weaponFrameStart weapon
             weapon = maybe defaultWeapon id $ objectActiveWeapon' obj
             objPosition = spritePosition $ objToSprite obj
-            spriteDir = spriteDirection $ objToSprite obj
-            dir | zeroVec $ spriteDir = spritePrevDirection $ objToSprite obj
-                | otherwise = spriteDir
-            dir' = dir `vecMul` (weaponVelocity weapon)
+            spriteDir = spriteFacing $ objToSprite obj
+            dir = spriteDir `vecMul` (weaponVelocity weapon)
             pos = (bboxToVector objPosition) { vecZ = 2.0 }
 
 getDirectionTowards :: Object -> Object -> Vector
@@ -144,8 +146,8 @@ getDirectionTowards src dst = Vector xDir yDir 0.0
     where   srcPos = bboxToVector . spritePosition . objToSprite $ src
             dstPos = bboxToVector . spritePosition . objToSprite $ dst
             diff = dstPos `vecMinus` srcPos
-            xNearlyEqual = abs (vecX diff) <= 2.0
-            yNearlyEqual = abs (vecY diff) <= 2.0
+            xNearlyEqual = abs (vecX diff) < tileSize
+            yNearlyEqual = abs (vecY diff) < tileSize
             xDir | xNearlyEqual = 0.0
                  | vecX diff > 0.0 = 1.0
                  | otherwise = -1.0
@@ -163,16 +165,26 @@ handleAttacks world = world { worldObjects = projectiles ++ inRangeObjs' ++ obje
                             (worldObjects world)
             updateObj o = o { objectWeaponLastShoot = worldTicks world 
                             , objectSprite = sprite'
+                            , objectMoveStrategy = strategy'
                             }
                 where   sprite' = let dir = getDirectionTowards o hero
-                                  in (objToSprite o) { spriteDirection = dir }
+                                  in (objToSprite o) { spriteDirection = defaultVector
+                                                     , spritePrevDirection = dir }
+                        strategy' = strategy { 
+                                        moveStrategyMoves = waitMove : moves 
+                                             }
+                        strategy = objectMoveStrategy o
+                        moves = moveStrategyMoves strategy
+                        waitMove = Wait $ weaponFrameStart weapon
+                        weaponId = fromInteger $ objectActiveWeapon o
+                        weapon = (objectWeapons o) !! weaponId
             projectiles = map (flip shootProjectileToObject hero) inRangeObjs'
             hero = worldHero world
             isHeroInRange obj = objectInRange obj $ worldHero world
 
 isDiagonalMove :: Position -> Position -> Bool
 isDiagonalMove (x, y) (x', y') | x == -1 && y == -1 = False -- error
-                               | otherwise = abs diffX > 0 && diffX == diffY
+                               | otherwise = abs diffX > 0 && abs diffX == abs diffY
     where   diffX = x - x'
             diffY = y - y'
 
@@ -186,23 +198,59 @@ linearizeDiagonalMove m p1@(x, y) p2@(x', y')
             pos1 = (x, y')
             pos2 = (x', y)
             isColPos1 = collissions !! (tileAt (fst pos1) (snd pos2))
-            isColPos2 = collissions !! (tileAt (fst pos2) (snd pos1))
+            -- isColPos2 = collissions !! (tileAt (fst pos2) (snd pos1))
             tileAt a b = fromInteger $ width * b + a
                                         
 
-makeMove :: World -> Object -> Object
-makeMove world obj | not $ isObject obj = obj
-                   | not $ isAllowedMove obj = obj
-                   | otherwise = 
-                let MoveStrategy moves canMove = objectMoveStrategy obj
-                in obj { objectMoveStrategy = MoveStrategy (movements ++ moves) canMove }
-    where   collissionMap = constructMap world
+tPlus :: Num a => (a, a) -> (a, a) -> (a, a)
+tPlus (a, b) (c, d) = (a + c, b + d)
+
+makeSearch :: World -> Object -> Position -> [Move]
+makeSearch world obj target = maybe [] id movements
+    where   movements = do
+                waypoints <- search collissionMap' objPos target
+                let waypoints' = if null waypoints then waypoints
+                                 else waypoints ++ (linearizeDiagonalMove 
+                                      collissionMap' (last waypoints) target)
+                let waypoints'' = waypoints' ++ [target]
+                return (fst . unMoveLogger $ mapM (aiMoveTo . toVec) $ drop 1 waypoints'')
+            collissionMap = constructMap world
             collissionMap' = let (Map width height cols) = collissionMap 
                                  coords = moveableCoords obj
                                  cols' = joinMapsInv $ map (unmarkCollission cols width height) coords
                              in collissionMap { mapCollissions = cols' }
-            waypoints = search collissionMap' objPos heroPos
-            waypoints' = waypoints ++ linearizeDiagonalMove collissionMap' (last waypoints) heroPos
-            movements = fst . unMoveLogger $ mapM (aiMoveTo . toVec) $ drop 1 waypoints'
             objPos = objectPosition obj
+                
+
+makeRangedMove :: World -> Object -> Object
+makeRangedMove world obj | not $ isObject obj = obj
+                         | not $ isAllowedMove obj = obj
+                         | otherwise = 
+                let MoveStrategy moves canMove = objectMoveStrategy obj
+                in obj { objectMoveStrategy = MoveStrategy (shortestMove ++ moves) canMove }
+    where   heroPos = heroPosition world
+            objPos = objectPosition obj
+            targets = [ heroPos `tPlus` (rangeDistance, 0)
+                      , heroPos `tPlus` (-rangeDistance, 0)
+                      , heroPos `tPlus` (0, rangeDistance)
+                      , heroPos `tPlus` (0, -rangeDistance)
+                      ]
+            targetMoves = map (makeSearch world obj) targets
+            possibleMoves = filter (not . null) targetMoves
+            shortestMove | isObjOnDest || null possibleMoves = []
+                         | otherwise = minimumBy (\a b -> compare (length a)
+                                                     (length b)) possibleMoves
+            isObjOnDest = any (== objPos) targets
+
+
+makeNonRangedMove :: World -> Object -> Object
+makeNonRangedMove world obj | not $ isObject obj = obj
+                            | not $ isAllowedMove obj = obj
+                            | otherwise = 
+                let MoveStrategy moves canMove = objectMoveStrategy obj
+                in obj { objectMoveStrategy = MoveStrategy (movements ++ moves) canMove }
+    where   movements = makeSearch world obj heroPos
             heroPos = heroPosition world
+
+makeMove :: World -> Object -> Object
+makeMove world obj = makeRangedMove world obj

@@ -20,6 +20,10 @@ fixedCharAnimator dir = CustomAnimator (fixedCharAnimation dir) charMoveNext 4 1
 fixedWoundedCharAnimator :: Direction -> Animator
 fixedWoundedCharAnimator dir = CustomAnimator (fixedWoundedCharAnimation dir) 
                                                frameMoveNextStop 5 1 0 0
+fixedWoundedHeroAnimator :: Direction -> Animator
+fixedWoundedHeroAnimator dir = CustomAnimator (fixedWoundedHeroAnimation dir)
+                                               frameMoveNextStop 5 1 0 0
+
 frameAnimator width height = CustomAnimator (frameAnimation width height) frameMoveNext 
 heroAnimator = CustomAnimator heroAnimation charMoveNext 8 5 0 0
 
@@ -43,14 +47,20 @@ frameAnimation width height sprite = SDL.Rect xTexCoord yTexCoord width height
             xTexCoord = width * (fromInteger $ animatorCount animator)
             animator = spriteAnimator sprite
 
-fixedWoundedCharAnimation :: Direction -> Sprite -> SDL.Rect
-fixedWoundedCharAnimation dir sprite = SDL.Rect xTexCoord yTexCoord 24 32
+fixedWoundedOffsetCharAnimation :: Int -> Direction -> Sprite -> SDL.Rect
+fixedWoundedOffsetCharAnimation offset dir sprite = SDL.Rect xTexCoord yTexCoord 24 32
     where   yTexCoord = directionToYTex dir
-            xTexCoord = 72 + (24 * fromInteger count)
+            xTexCoord = offset + (24 * fromInteger count)
             animator  = spriteAnimator sprite
             direction = spriteDirection sprite
             count | animatorCount animator < 3 = animatorCount animator
                   | otherwise = 4 - animatorCount animator
+
+fixedWoundedCharAnimation :: Direction -> Sprite -> SDL.Rect
+fixedWoundedCharAnimation = fixedWoundedOffsetCharAnimation 72
+
+fixedWoundedHeroAnimation :: Direction -> Sprite -> SDL.Rect
+fixedWoundedHeroAnimation = fixedWoundedOffsetCharAnimation 216
 
 fixedCharAnimation :: Direction -> Sprite -> SDL.Rect
 fixedCharAnimation dir sprite = SDL.Rect xTexCoord yTexCoord 24 32
