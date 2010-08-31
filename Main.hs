@@ -1,11 +1,12 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Image as SDLi
+import qualified Graphics.UI.SDL.Mixer as SDLm
 import qualified Data.Map as M
 import Data.List (foldl')
-import Control.Monad (forM)
+import Control.Monad (forM, when)
 import Control.Monad.Reader (runReaderT)
-import Maybe (fromJust)
+import Maybe (fromJust, isJust)
 import Random (randomIO)
 
 import Types
@@ -16,6 +17,8 @@ import Animation
 import Movemap
 import MapLoader
 import AI
+import Sound
+import Paths_fight
 
 maxAmmo :: Integer
 maxAmmo = 30
@@ -320,17 +323,29 @@ loadMap filename world = do
                   })
 
 
+audioRate = 22050
+audioFormat = SDL.AudioS16Sys
+audioChannels = 2
+audioBuffers = 4096
+
 foreign export ccall "haskell_main" main :: IO ()
 main :: IO ()
 main = do
-    SDL.init [SDL.InitEverything]
+    SDL.init [SDL.InitVideo, SDL.InitAudio]
+    SDLm.openAudio audioRate audioFormat audioChannels audioBuffers 
+    music <- SDLm.loadMUS "music/music.mp3"
     screen <- SDL.setVideoMode 320 240 32 []
+
     textures <- loadGraphics
     ticks <- SDL.getTicks >>= return . fromIntegral
-    let world = World screen [] [] [genRangedFoe, genHeartItem] [] genHero textures ticks ticks defaultVector
+    sounds <- loadSounds
+    let world = World screen [] [] [genRangedFoe, genHeartItem] [] genHero textures ticks ticks defaultVector music sounds
     world' <- loadMap "images/map.tmx" world
 
+    SDLm.playMusic music (-1)
     eventHandler world'
+
+    SDLm.closeAudio
     SDL.quit
 
 handleCollissions :: Object -> [Moveable] -> Object
@@ -401,6 +416,13 @@ setItemPositionFromObject item obj = item { itemSprite = spr }
             pos = spritePosition $ objToSprite obj
             
 
+doPlayItemSound :: World -> Object -> IO ()
+doPlayItemSound world item = playSound sound (worldSounds world)
+    where   sound = sfx $ itemType item
+            sfx (ItemHeart _) = SoundPickupHeart
+            sfx (ItemArrow _) = SoundPickupArrow
+            sfx _         = SoundPickupRupee
+
 eventHandler :: World -> IO ()
 eventHandler world = do
     render world
@@ -439,8 +461,58 @@ eventHandler world = do
                            }
     let world'''' = withHeroDirection world''' (const $ worldInput world''') 
 
+    let deadItems = filter (\x -> isDead x && isItem x) objects''
+    let itemBoxes = map boundingBox deadItems
+    let collidedItems = filter (isCollission (boundingBox hero') . snd) 
+                               (zip deadItems itemBoxes)
+    mapM (doPlayItemSound world) $ map fst collidedItems
+
+    let projectiles = filter isProjectile objects'
+    let enemyProjs = filter (\p -> isJust (projectileShooter p) && 
+           spriteId (objToSprite (fromJust (projectileShooter p))) /= 1)
+           projectiles
+    let projs' = map boundingBox enemyProjs
+    when (not . null $ filter (isCollission (boundingBox hero')) projs')
+        (playSound SoundHurt $ worldSounds world)
+
+    handlePlayAttackSound world
+
     e <- SDL.pollEvent
     handleEvent (handleAttacks world'''') e
+
+doPlaySword :: World -> Bool -> IO ()
+doPlaySword world False = return ()
+doPlaySword world True = playSound SoundSword (worldSounds world) 
+
+doPlayBow :: World -> Bool -> IO ()
+doPlayBow world False = return ()
+doPlayBow world True = playSound SoundBow (worldSounds world) 
+
+handlePlayAttackSound :: World -> IO ()
+handlePlayAttackSound world = doPlaySword world (hasAniStarted && isSwordGid)
+                           >> doPlayBow   world (hasAniStarted && isBowGid)
+    where   hero = worldHero world
+            gid  = spriteGraphic $ objectSprite hero
+            hasAniStarted =  animatorFrameCount animator == startFrm
+                          && animatorCount animator == startCnt
+            animator = spriteAnimator $ objectSprite hero
+            startCnt = start `div` (animatorMaxFrameCount animator)
+            startFrm = start `mod` (animatorMaxFrameCount animator) + 1
+            start = weaponFrameStart weapon
+            weapon = weapons !! idx
+            weapons = objectWeapons hero
+            idx = fromInteger $ objectActiveWeapon hero
+            isBowGid   = any (== gid) bowGraphics
+            isSwordGid = any (== gid) swordGraphics
+            bowGraphics = [ heroBowUpId
+                          , heroBowDownId
+                          , heroBowLeftId
+                          , heroBowRightId ]
+            swordGraphics = [ heroSwordUpId
+                            , heroSwordDownId
+                            , heroSwordLeftId
+                            , heroSwordRightId ]
+
 
 constNotNull vec vec' | zeroVec vec = vec'
                       | otherwise   = vec

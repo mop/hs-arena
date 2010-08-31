@@ -3,6 +3,7 @@ module Types
 where
 
 import qualified Graphics.UI.SDL as SDL
+import qualified Graphics.UI.SDL.Mixer as SDLm
 import Control.Monad.Reader
 import qualified Data.Map as M
 
@@ -159,8 +160,17 @@ data Weapon = Weapon {
 
 defaultWeapon = Weapon 0 defaultSprite 0 0 (-1) 0 0 (-1) []
 
+data Sounds = SoundSword 
+            | SoundBow
+            | SoundHurt
+            | SoundGameOver
+            | SoundPickupHeart
+            | SoundPickupArrow
+            | SoundPickupRupee
+    deriving (Show, Eq)
 
 type TextureMap = M.Map Integer SDL.Surface
+type SoundMap = [(Sounds, SDLm.Chunk)]
 
 data World = World {
     worldScreen           :: !SDL.Surface
@@ -173,4 +183,7 @@ data World = World {
   , worldTicks            :: !Integer
   , worldAiTicks          :: !Integer
   , worldInput            :: !Vector
+  , worldBgm              :: !SDLm.Music
+  , worldSounds           :: !SoundMap
 }
+

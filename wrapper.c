@@ -1,6 +1,7 @@
 //for explanations see http://www.haskell.org/ghc/docs/latest/html/users_guide/ffi-ghc.html#using-own-main
 
 #include <SDL/SDL.h>
+#include <SDL/SDL_mixer.h>
 #include <HsFFI.h>
 
 #ifdef __GLASGOW_HASKELL__

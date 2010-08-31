@@ -21,7 +21,8 @@ Data-Files:          images/arrow-left.png, images/arrow-right.png,
                      images/hero.png, images/hp-bar.png, images/hps.png, 
                      images/map.tmx, images/minish_chip_forest_01.col,
                      images/minish_chip_forest_01.png, images/sword-sprite.png,
-                     images/sword.png
+                     images/sword.png,
+                     music/music.mp3
 
 Executable fight
   Main-is:           Main.hs
@@ -37,12 +38,12 @@ Executable fight
                      Tile
                      Types
 
-  Build-Depends:     base >= 4, containers, random, SDL, SDL-image, HaXml, mtl,
-                     haskell98, PSQueue
+  Build-Depends:     base >= 4, containers, random, SDL, SDL-image, SDL-mixer,
+                     HaXml, mtl, haskell98, PSQueue
 
   ghc-options: -Wall -O
   ghc-prof-options: -prof -auto-all
   Includes: SDL/SDL.h 
-  Extra-libraries: SDL SDLmain 
+  Extra-libraries: SDL SDLmain smpeg
   
   c-sources:           wrapper.c
