@@ -183,7 +183,7 @@ projectileStarted p = isProjectile p `seq` isProjectile p && projectileStart p <
 addItemToHero :: Object -> Object -> Object
 addItemToHero hero (Item _ _ (ItemHeart amount)) = hero'
     where   hero' = hero { objectHp = hp }
-            hp = min (objectHp hero + amount) 100
+            hp = min (objectHp hero + amount) 12
 addItemToHero hero (Item _ _ (ItemArrow amount)) = hero'
     where   hero' = hero { objectWeapons = weapons' }
             weapons' = map doIncreaseBowAmmo $ objectWeapons hero

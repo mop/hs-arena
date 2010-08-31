@@ -33,10 +33,10 @@ foeSprite :: String
 foeSprite = "images/foe-1.png"
 foe2Sprite :: String
 foe2Sprite = "images/foe-2.png"
-hpBar :: String
-hpBar = "images/hp-bar.png"
-hpBorder :: String
-hpBorder = "images/hps.png"
+heartsSmall :: String
+heartsSmall = "images/hearts-small.png"
+heartsBig :: String
+heartsBig = "images/hearts-big.png"
 arrowLeft :: String
 arrowLeft = "images/arrow-left.png"
 arrowRight :: String
@@ -84,10 +84,10 @@ foeGraphicId :: Integer
 foeGraphicId = 3
 foe2GraphicId :: Integer
 foe2GraphicId = 4
-hpBarId :: Integer
-hpBarId = 5
-hpBorderId :: Integer
-hpBorderId = 6
+heartsSmallId :: Integer
+heartsSmallId = 5
+heartsBigId :: Integer
+heartsBigId = 6
 arrowLeftId :: Integer
 arrowLeftId = 7
 arrowRightId :: Integer
@@ -135,8 +135,8 @@ loadGraphics = do
     heroGraphic  <- SDLi.load heroSprite
     foeGraphic  <- SDLi.load foeSprite
     foe2Graphic  <- SDLi.load foe2Sprite
-    hpBarGraphic  <- SDLi.load hpBar
-    hpBorderGraphic  <- SDLi.load hpBorder
+    heartsSmallGraphic  <- SDLi.load heartsSmall
+    heartsBigGraphic  <- SDLi.load heartsBig
     arrowLeftGraphic  <- SDLi.load arrowLeft
     arrowRightGraphic  <- SDLi.load arrowRight
     swordGraphic  <- SDLi.load sword
@@ -161,8 +161,8 @@ loadGraphics = do
                         , (heroGraphicId, heroGraphic)
                         , (foeGraphicId, foeGraphic)
                         , (foe2GraphicId, foe2Graphic)
-                        , (hpBarId, hpBarGraphic)
-                        , (hpBorderId, hpBorderGraphic)
+                        , (heartsSmallId, heartsSmallGraphic)
+                        , (heartsBigId, heartsBigGraphic)
                         , (arrowLeftId, arrowLeftGraphic)
                         , (arrowRightId, arrowRightGraphic)
                         , (swordId, swordGraphic)
@@ -192,7 +192,7 @@ heroSwordAnimations = [ (DirUp, heroSwordUpId)
                       , (DirRight, heroSwordRightId)
                       ]
 
-weaponSword = Weapon 5 wSprite 1 10 swordId 600 0 (-1) heroSwordAnimations
+weaponSword = Weapon 1 wSprite 1 10 swordId 600 0 (-1) heroSwordAnimations
 wSprite = defaultSprite { spriteId = 100
                         , spriteGraphic = swordSpriteId
                         , spriteTextureOffset = defaultCharOffset
@@ -205,7 +205,7 @@ heroBowAnimations = [ (DirUp, heroBowUpId)
                     , (DirRight, heroBowRightId)
                     ]
 
-weaponArrow = Weapon 10 bSprite 100 5 bowSpriteId 800 (3 * 4) 30 heroBowAnimations
+weaponArrow = Weapon 2 bSprite 100 5 bowSpriteId 800 (3 * 4) 30 heroBowAnimations
 bSprite = defaultSprite { spriteId = 101
                         , spriteGraphic = arrowSpriteId
                         , spriteTextureOffset = defaultCharOffset
@@ -213,7 +213,7 @@ bSprite = defaultSprite { spriteId = 101
                         }
 
 genHero :: Object
-genHero = Object 100 10 hSprite [weaponSword, weaponArrow] 0 0 heroAnimator defaultMoveStrategy
+genHero = Object 12 10 hSprite [weaponSword, weaponArrow] 0 0 heroAnimator defaultMoveStrategy
     where   hSprite = Sprite 1 heroGraphicId position defaultVector defaultVector 0.0 defaultCharOffset heroAnimator
             position = BBox 32.0 64.0 1.0 16.0 16.0
 
@@ -224,16 +224,16 @@ heroBowAnimation :: Animator
 heroBowAnimation = frameAnimator 96 96 6 3 0 0
 
 genFoe :: Object
-genFoe = Object 10 3 fSprite [weaponSword'] 0 0 charAnimator defaultMoveStrategy
+genFoe = Object 2 3 fSprite [weaponSword'] 0 0 charAnimator defaultMoveStrategy
     where   fSprite = Sprite 2 foeGraphicId position defaultVector defaultVector 0.0 defaultCharOffset charAnimator
             position = BBox 64.0 64.0 1.0 16.0 16.0
             weaponSword' = weaponSword { weaponRange = 0 }
 
 genRangedFoe :: Object
-genRangedFoe = Object 10 3 fSprite [weaponStone] 0 0 charAnimator defaultMoveStrategy
+genRangedFoe = Object 2 3 fSprite [weaponStone] 0 0 charAnimator defaultMoveStrategy
     where   fSprite = Sprite 3 foe2GraphicId position defaultVector defaultVector 0.0 defaultCharOffset charAnimator
             position = BBox 80.0 80.0 1.0 16.0 16.0
-            weaponStone = Weapon 5 sSprite 100 3 rockIconSpriteId 800 (3 * 4) 30 []
+            weaponStone = Weapon 1 sSprite 100 3 rockIconSpriteId 800 (3 * 4) 30 []
             sSprite = defaultSprite { spriteId = 102
                                     , spriteGraphic = rockSpriteId
                                     , spriteTextureOffset = defaultCharOffset
@@ -241,7 +241,7 @@ genRangedFoe = Object 10 3 fSprite [weaponStone] 0 0 charAnimator defaultMoveStr
                                     }
 
 genHeartItem :: Object
-genHeartItem = Item sprite 300 $ ItemHeart 20
+genHeartItem = Item sprite 300 $ ItemHeart 4
     where   sprite   = Sprite 60 itemHeartId position defaultVector defaultVector 0.0 defaultVector itemAnimator
             position = BBox 200.0 80.0 1.0 16.0 16.0
 
@@ -283,9 +283,26 @@ renderAmmo world | weaponAmmo activeWeapon < 0 = return ()
             texture = M.lookup digitsSpriteId $ worldTextures world
             screen = worldScreen world
 
+renderHp :: World -> IO ()
+renderHp world = sequence_ . reverse $ fst heartActions
+    where   hp = objectHp $ worldHero world
+            smallHeartRect p = Just $ SDL.Rect (9 * p) 0 9 9
+            bigHeartRect p = Just $ SDL.Rect (11 * p) 0 11 10
+            bgRect pos = Just $ SDL.Rect (20 + pos * 8) 10 9 9
+            bgRect' pos = Just $ SDL.Rect (19 + pos * 8) 10 11 11
+            smallHeartSf = fromJust $ M.lookup heartsSmallId $ worldTextures world
+            bigHeartSf = fromJust $ M.lookup heartsBigId $ worldTextures world
+            heartActions = foldl reducer ([], fromIntegral hp) [1..3]
+            reducer (xs, h) i | h > 4 = (xs ++ [createSmallFullHeart i], h - 4)
+                              | h > 0 = ((createBigHeart i h) : xs, 0)
+                              | otherwise = (xs ++ [createSmallEmptyHeart i], 0)
+            createSmallFullHeart p = SDL.blitSurface smallHeartSf (smallHeartRect 0) screen (bgRect p)
+            createSmallEmptyHeart p = SDL.blitSurface smallHeartSf (smallHeartRect 1) screen (bgRect p)
+            createBigHeart p num = SDL.blitSurface bigHeartSf (bigHeartRect $ 4 - num) screen (bgRect' p)
+            screen = worldScreen world
+            
 renderControls :: World -> IO ()
-renderControls world = SDL.blitSurface hpBorderSurface Nothing screen (Just borderRect)
-                    >> mapM (\h -> SDL.blitSurface hpSurface Nothing screen (Just $ hpRect h)) [1..(objectHp hero)]
+renderControls world = renderHp world
                     >> SDL.blitSurface arrowLeftSurface Nothing screen (Just arrowLeftRect)
                     >> SDL.blitSurface arrowRightSurface Nothing screen (Just arrowRightRect)
                     >> SDL.blitSurface weaponSurface Nothing screen (Just weaponRect)
@@ -293,8 +310,6 @@ renderControls world = SDL.blitSurface hpBorderSurface Nothing screen (Just bord
                     >> return ()
     where   hero = worldHero world
             activeWeapon = heroActiveWeapon world
-            hpSurface = fromJust $ M.lookup hpBarId (worldTextures world)
-            hpBorderSurface = fromJust $ M.lookup hpBorderId (worldTextures world)
             arrowLeftSurface = fromJust $ M.lookup arrowLeftId $ worldTextures world
             arrowRightSurface = fromJust $ M.lookup arrowRightId $ worldTextures world
             weaponSurface = fromJust $ M.lookup (weaponIcon activeWeapon)$ worldTextures world
@@ -303,7 +318,6 @@ renderControls world = SDL.blitSurface hpBorderSurface Nothing screen (Just bord
             arrowLeftRect = SDL.Rect 128 212 16 16
             weaponRect = SDL.Rect 144 212 16 16
             arrowRightRect = SDL.Rect 160 212 16 16
-            hpRect hp = SDL.Rect (fromInteger hp + 217 - 1) 214 1 16
 
 tilesetIds :: [Integer]
 tilesetIds = [500..]
