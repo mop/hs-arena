@@ -193,7 +193,6 @@ addItemToHero hero (Item _ _ (ItemArrow amount)) = hero'
                 | otherwise = weapon
                 where   ammo' = min 30 (ammo + amount)
                         ammo  = weaponAmmo weapon
-
 addItemToHero hero _ = hero
 
 handleObjectEvents :: Object -> [Object] -> Object

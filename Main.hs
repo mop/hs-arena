@@ -3,7 +3,7 @@ import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Image as SDLi
 import qualified Graphics.UI.SDL.Mixer as SDLm
 import qualified Data.Map as M
-import Data.List (foldl')
+import Data.List (foldl', minimumBy)
 import Control.Monad (forM, when)
 import Control.Monad.Reader (runReaderT)
 import Maybe (fromJust, isJust)
@@ -77,6 +77,20 @@ itemHeartSprite :: String
 itemHeartSprite = "images/item-heart.png"
 itemArrowSprite :: String
 itemArrowSprite = "images/item-arrow.png"
+rupeeIconSprite :: String
+rupeeIconSprite = "images/rupee-icon.png"
+itemRupeeGreenSprite :: String
+itemRupeeGreenSprite = "images/item-rupee-green.png"
+itemRupeeBlueSprite :: String
+itemRupeeBlueSprite = "images/item-rupee-blue.png"
+itemRupeeRedSprite :: String
+itemRupeeRedSprite = "images/item-rupee-red.png"
+itemRupeeGreenBigSprite :: String
+itemRupeeGreenBigSprite = "images/item-rupee-green-big.png"
+itemRupeeBlueBigSprite :: String
+itemRupeeBlueBigSprite = "images/item-rupee-blue-big.png"
+itemRupeeRedBigSprite :: String
+itemRupeeRedBigSprite = "images/item-rupee-red-big.png"
 
 heroGraphicId :: Integer
 heroGraphicId = 2
@@ -128,6 +142,20 @@ itemHeartId :: Integer
 itemHeartId = 25
 itemArrowId :: Integer
 itemArrowId = 26
+rupeeIconId :: Integer
+rupeeIconId = 27
+itemRupeeGreenId :: Integer
+itemRupeeGreenId = 28
+itemRupeeBlueId :: Integer
+itemRupeeBlueId = 29
+itemRupeeRedId :: Integer
+itemRupeeRedId = 30
+itemRupeeGreenBigId :: Integer
+itemRupeeGreenBigId = 31
+itemRupeeBlueBigId :: Integer
+itemRupeeBlueBigId = 32
+itemRupeeRedBigId :: Integer
+itemRupeeRedBigId = 33
 
 loadGraphics :: IO TextureMap
 loadGraphics = do
@@ -157,6 +185,13 @@ loadGraphics = do
     rockIconSpriteGraphic <- SDLi.load rockIconSprite
     itemHeartSpriteGraphic <- SDLi.load itemHeartSprite
     itemArrowSpriteGraphic <- SDLi.load itemArrowSprite
+    rupeeIconGraphic <- SDLi.load rupeeIconSprite
+    itemRupeeGreenGraphic <- SDLi.load itemRupeeGreenSprite
+    itemRupeeBlueGraphic <- SDLi.load itemRupeeBlueSprite
+    itemRupeeRedGraphic <- SDLi.load itemRupeeRedSprite
+    itemRupeeGreenBigGraphic <- SDLi.load itemRupeeGreenBigSprite
+    itemRupeeBlueBigGraphic <- SDLi.load itemRupeeBlueBigSprite 
+    itemRupeeRedBigGraphic <- SDLi.load itemRupeeRedBigSprite
     return $ M.fromList [ (1, crossGraphic)
                         , (heroGraphicId, heroGraphic)
                         , (foeGraphicId, foeGraphic)
@@ -183,6 +218,13 @@ loadGraphics = do
                         , (rockIconSpriteId, rockIconSpriteGraphic)
                         , (itemHeartId, itemHeartSpriteGraphic)
                         , (itemArrowId, itemArrowSpriteGraphic)
+                        , (rupeeIconId, rupeeIconGraphic)
+                        , (itemRupeeGreenId, itemRupeeGreenGraphic)
+                        , (itemRupeeBlueId, itemRupeeBlueGraphic)
+                        , (itemRupeeRedId, itemRupeeRedGraphic)
+                        , (itemRupeeGreenBigId, itemRupeeGreenBigGraphic)
+                        , (itemRupeeBlueBigId, itemRupeeBlueBigGraphic)
+                        , (itemRupeeRedBigId, itemRupeeRedBigGraphic)
                         ]
 
 heroSwordAnimations :: [(Direction, Integer)]
@@ -249,6 +291,34 @@ genArrowItem :: Object
 genArrowItem = Item sprite 300 $ ItemArrow 5
     where   sprite   = Sprite 61 itemArrowId position defaultVector defaultVector 0.0 defaultVector itemAnimator
             position = BBox 100.0 100.0 1.0 16.0 16.0
+
+rupeeOffsets :: [(Integer, Integer)]
+rupeeOffsets = [ (1,   itemRupeeGreenId)
+               , (5,   itemRupeeBlueId)
+               , (20,  itemRupeeRedId)
+               , (50,  itemRupeeGreenBigId)
+               , (100, itemRupeeBlueBigId)
+               , (200, itemRupeeRedBigId)
+               ]
+
+genRupeeItem :: Object -> Object
+genRupeeItem o = Item sprite 300 $ ItemRupee rupees
+    where   rupees = let (_, _, r) = offset
+                     in r
+            sprite = Sprite 62 texId position defaultVector defaultVector 0.0
+                               defaultVector itemAnimator
+            position = BBox 0.0 0.0 1.0 16.0 16.0
+            texId = let (_, x, _) = offset
+                     in x
+            offset  = minimumBy cmpFirst offsets
+            offsets = map (\(s, o) -> ((abs $ s - score), o, s)) rupeeOffsets 
+            cmpFirst = (\(a, _, _) (b, _, _) -> compare a b)
+            score = max (objectVelocity o) vel + strength
+            strength = weaponStrength weapon
+            vel = weaponVelocity weapon
+            weapon = weapons !! idx
+            idx = fromIntegral $ objectActiveWeapon o
+            weapons = objectWeapons o
                 
 render :: World -> IO ()
 render world = forM graphics drawGraphic >> return ()
@@ -300,9 +370,27 @@ renderHp world = sequence_ . reverse $ fst heartActions
             createSmallEmptyHeart p = SDL.blitSurface smallHeartSf (smallHeartRect 1) screen (bgRect p)
             createBigHeart p num = SDL.blitSurface bigHeartSf (bigHeartRect $ 4 - num) screen (bgRect' p)
             screen = worldScreen world
+
+renderScore :: World -> IO ()
+renderScore world = drawRupee 
+                 >> runReaderT (draw intSprite) plotData 
+                 >> return ()
+    where   intSprite = IntegerSprite score pos digitsSpriteId
+            score' | score > 9999 = 9999
+                   | otherwise = score
+            score = worldScore world
+            plotData = PlotData screen (fromJust texture)
+            pos = Vector 304.0 224.0 0.0
+            texture = M.lookup digitsSpriteId $ worldTextures world
+            screen = worldScreen world
+            drawRupee = SDL.blitSurface rupeeSurface rupeeTexRect screen rupePos
+            rupeeSurface = fromJust $ M.lookup rupeeIconId $ worldTextures world
+            rupeeTexRect = Just $ SDL.Rect 0 0 16 16
+            rupePos = Just $ SDL.Rect 276 220 16 16
             
 renderControls :: World -> IO ()
 renderControls world = renderHp world
+                    >> renderScore world
                     >> SDL.blitSurface arrowLeftSurface Nothing screen (Just arrowLeftRect)
                     >> SDL.blitSurface arrowRightSurface Nothing screen (Just arrowRightRect)
                     >> SDL.blitSurface weaponSurface Nothing screen (Just weaponRect)
@@ -353,7 +441,8 @@ main = do
     textures <- loadGraphics
     ticks <- SDL.getTicks >>= return . fromIntegral
     sounds <- loadSounds
-    let world = World screen [] [] [genRangedFoe, genHeartItem] [] genHero textures ticks ticks defaultVector music sounds
+    let world = World screen [] [] [genRangedFoe, genHeartItem] [] genHero textures 
+                      ticks ticks defaultVector 0 music sounds
     world' <- loadMap "images/map.tmx" world
 
     SDLm.playMusic music (-1)
@@ -419,10 +508,11 @@ isAnimationFinished :: Sprite -> Bool
 isAnimationFinished spr = animatorCount ani + 1 == animatorMaxCount ani
     where   ani = spriteAnimator spr
 
-numberToItem :: Integer -> Object
-numberToItem num | num < 50 = genHeartItem { itemTime = 0 }
-                 | num >= 50 && num < 80 = genHeartItem
-                 | num >= 80 = genArrowItem
+numberToItem :: Object -> Integer -> Object
+numberToItem o num | num < 50 = genHeartItem { itemTime = 0 }
+                   | num >= 50 && num < 70 = genHeartItem
+                   | num >= 70 && num < 80 = genArrowItem
+                   | num >= 80 = genRupeeItem o
 
 setItemPositionFromObject :: Object -> Object -> Object
 setItemPositionFromObject item obj = item { itemSprite = spr }
@@ -435,7 +525,16 @@ doPlayItemSound world item = playSound sound (worldSounds world)
     where   sound = sfx $ itemType item
             sfx (ItemHeart _) = SoundPickupHeart
             sfx (ItemArrow _) = SoundPickupArrow
+            sfx (ItemRupee _) = SoundPickupRupee
             sfx _         = SoundPickupRupee
+
+itemToScore :: Object -> Integer
+itemToScore (Item _ _ (ItemRupee x)) = x
+itemToScore _ = 0
+
+increaseScore :: World -> Integer -> World
+increaseScore world score = world { worldScore = score' }
+    where   score' = score + worldScore world
 
 eventHandler :: World -> IO ()
 eventHandler world = do
@@ -466,7 +565,7 @@ eventHandler world = do
 
     let objects'''' = map (makeMove world'') objects'''
     let deadObjects = filter (\x -> (isDead x) && (isObject x)) objects''''
-    items <- mapM (const $ fmap (numberToItem . (`mod` 100)) randomIO) deadObjects
+    items <- mapM (\o -> fmap ((numberToItem o) . (`mod` 100)) randomIO) deadObjects
     let items' = map (uncurry setItemPositionFromObject) $ zip items deadObjects
     let anis = map (flip move diff) $ worldAnimations world'' ++ map toDeadAnimation deadObjects
 
@@ -480,6 +579,7 @@ eventHandler world = do
     let collidedItems = filter (isCollission (boundingBox hero') . snd) 
                                (zip deadItems itemBoxes)
     mapM (doPlayItemSound world) $ map fst collidedItems
+    let score = sum $ map itemToScore $ map fst collidedItems
 
     let projectiles = filter isProjectile objects'
     let enemyProjs = filter (\p -> isJust (projectileShooter p) && 
@@ -492,7 +592,7 @@ eventHandler world = do
     handlePlayAttackSound world
 
     e <- SDL.pollEvent
-    handleEvent (handleAttacks world'''') e
+    handleEvent (handleAttacks $ increaseScore world'''' score) e
 
 doPlaySword :: World -> Bool -> IO ()
 doPlaySword world False = return ()

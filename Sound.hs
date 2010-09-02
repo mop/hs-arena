@@ -32,6 +32,6 @@ getChunk sound xs = fmap (snd . (theSounds !!) . (`mod` l)) randomIO
             l = length theSounds
 
 playSound :: Sounds -> SoundMap -> IO ()
-playSound sound xs = (chunk >>= \c -> SDLm.playChannel (-1) c 0)
+playSound sound xs = (chunk >>= \c -> SDLm.playChannel 1 c 0)
                      >> return ()
     where chunk = getChunk sound xs

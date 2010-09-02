@@ -119,6 +119,7 @@ defaultMoveStrategy = MoveStrategy [DefaultMove] True
 
 data ItemType = ItemHeart Integer
               | ItemArrow Integer 
+              | ItemRupee Integer 
               deriving (Show, Eq)
 
 data Object = Object {
@@ -183,6 +184,7 @@ data World = World {
   , worldTicks            :: !Integer
   , worldAiTicks          :: !Integer
   , worldInput            :: !Vector
+  , worldScore            :: !Integer
   , worldBgm              :: !SDLm.Music
   , worldSounds           :: !SoundMap
 }
