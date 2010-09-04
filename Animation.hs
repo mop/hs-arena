@@ -24,6 +24,7 @@ fixedWoundedHeroAnimator :: Direction -> Animator
 fixedWoundedHeroAnimator dir = CustomAnimator (fixedWoundedHeroAnimation dir)
                                                frameMoveNextStop 5 1 0 0
 frameAnimator width height = CustomAnimator (frameAnimation width height) frameMoveNext 
+frameStopAnimator width height = CustomAnimator (frameAnimation width height) frameMoveNextStop
 heroAnimator = CustomAnimator heroAnimation charMoveNext 8 5 0 0
 
 itemAnimator :: Animator

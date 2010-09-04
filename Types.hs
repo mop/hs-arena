@@ -168,6 +168,8 @@ data Sounds = SoundSword
             | SoundPickupHeart
             | SoundPickupArrow
             | SoundPickupRupee
+            | SoundEnemyHit
+            | SoundEnemyKill
     deriving (Show, Eq)
 
 type TextureMap = M.Map Integer SDL.Surface

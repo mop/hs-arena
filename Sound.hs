@@ -20,6 +20,8 @@ soundList = [ (SoundSword,       "sound/MC_Link_Sword1.wav")
             , (SoundPickupHeart, "sound/MC_Heart.wav")
             , (SoundPickupArrow, "sound/MC_Heart.wav")
             , (SoundPickupRupee, "sound/MC_Rupee.wav")
+            , (SoundEnemyHit,    "sound/MC_Enemy_Hit.wav")
+            , (SoundEnemyKill,   "sound/MC_Enemy_Kill.wav")
             ]
 
 loadSounds :: IO SoundMap
@@ -32,6 +34,12 @@ getChunk sound xs = fmap (snd . (theSounds !!) . (`mod` l)) randomIO
             l = length theSounds
 
 playSound :: Sounds -> SoundMap -> IO ()
+playSound SoundEnemyKill xs = (chunk >>= \c -> SDLm.playChannel 3 c 0)
+                           >> return ()
+    where chunk = getChunk SoundEnemyKill xs
+playSound SoundEnemyHit xs = (chunk >>= \c -> SDLm.playChannel 2 c 0)
+                          >> return ()
+    where chunk = getChunk SoundEnemyHit xs
 playSound sound xs = (chunk >>= \c -> SDLm.playChannel 1 c 0)
                      >> return ()
     where chunk = getChunk sound xs

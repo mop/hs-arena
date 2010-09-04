@@ -91,6 +91,10 @@ itemRupeeBlueBigSprite :: String
 itemRupeeBlueBigSprite = "images/item-rupee-blue-big.png"
 itemRupeeRedBigSprite :: String
 itemRupeeRedBigSprite = "images/item-rupee-red-big.png"
+heroDeadSprite :: String
+heroDeadSprite = "images/hero-dead.png"
+gameOverSprite :: String
+gameOverSprite = "images/game-over.png"
 
 heroGraphicId :: Integer
 heroGraphicId = 2
@@ -156,6 +160,10 @@ itemRupeeBlueBigId :: Integer
 itemRupeeBlueBigId = 32
 itemRupeeRedBigId :: Integer
 itemRupeeRedBigId = 33
+heroDeadId :: Integer
+heroDeadId = 34
+gameOverId :: Integer
+gameOverId = 35
 
 loadGraphics :: IO TextureMap
 loadGraphics = do
@@ -192,6 +200,8 @@ loadGraphics = do
     itemRupeeGreenBigGraphic <- SDLi.load itemRupeeGreenBigSprite
     itemRupeeBlueBigGraphic <- SDLi.load itemRupeeBlueBigSprite 
     itemRupeeRedBigGraphic <- SDLi.load itemRupeeRedBigSprite
+    heroDeadGraphic <- SDLi.load heroDeadSprite
+    gameOverGraphic <- SDLi.load gameOverSprite
     return $ M.fromList [ (1, crossGraphic)
                         , (heroGraphicId, heroGraphic)
                         , (foeGraphicId, foeGraphic)
@@ -225,6 +235,8 @@ loadGraphics = do
                         , (itemRupeeGreenBigId, itemRupeeGreenBigGraphic)
                         , (itemRupeeBlueBigId, itemRupeeBlueBigGraphic)
                         , (itemRupeeRedBigId, itemRupeeRedBigGraphic)
+                        , (heroDeadId, heroDeadGraphic)
+                        , (gameOverId, gameOverGraphic)
                         ]
 
 heroSwordAnimations :: [(Direction, Integer)]
@@ -264,6 +276,9 @@ heroSwordSlayAnimation = frameAnimator 96 96 10 2 0 0
 
 heroBowAnimation :: Animator
 heroBowAnimation = frameAnimator 96 96 6 3 0 0
+
+heroDeadAnimation :: Animator
+heroDeadAnimation = frameStopAnimator 96 96 8 5 0 0
 
 genFoe :: Object
 genFoe = Object 2 3 fSprite [weaponSword'] 0 0 charAnimator defaultMoveStrategy
@@ -496,13 +511,14 @@ deadAnimationSprite =
     defaultSprite { spriteId = 50
                   , spriteGraphic = deadAniId
                   , spriteTextureOffset = defaultCharOffset
-                  , spriteAnimator = frameAnimator 24 32 3 8 0 0 
+                  , spriteAnimator = frameAnimator 32 32 9 4 0 0 
                   } 
 
 toDeadAnimation :: Object -> Sprite
 toDeadAnimation obj = deadAnimationSprite { spritePosition = pos }
     where   sprite = objToSprite obj
-            pos = (spritePosition (objToSprite obj)) { bboxZ = 2.0 }
+            pos = (spritePosition sprite) { bboxZ = 2.0, bboxX = posX }
+            posX = (bboxX $ spritePosition sprite) - 4
 
 isAnimationFinished :: Sprite -> Bool
 isAnimationFinished spr = animatorCount ani + 1 == animatorMaxCount ani
@@ -536,6 +552,117 @@ increaseScore :: World -> Integer -> World
 increaseScore world score = world { worldScore = score' }
     where   score' = score + worldScore world
 
+doResetAi :: World -> Integer -> World
+doResetAi world ticks = world'
+    where   isThresholdReached = (ticks - worldAiTicks world) > aiThreshold
+            world' | isThresholdReached = resetAi world ticks
+                   | otherwise = world
+
+moveObjects :: World -> Integer -> World
+moveObjects world ticks = world'
+    where   world' = world { worldObjects = objects'
+                           , worldHero = hero'
+                           }
+            objects' = tail $ eventHandledObjects
+            hero' = head $ eventHandledObjects
+            eventHandledObjects = map (uncurry handleObjectEvents) objectList
+            objectList = generateObjectList $ hero : objects
+            hero = move (worldHero world) diff
+            objects = map (flip move diff) $ worldObjects world
+            diff = 0.080 * (fromIntegral $ ticks - (worldTicks world))
+
+handleCollissionsForObjects :: World -> Integer -> World
+handleCollissionsForObjects world ticks = world'
+    where   world' = world { worldObjects = objects'
+                           , worldHero = hero'
+                           , worldTicks = ticks
+                           }
+            objects' = tail $ collissionHandledObjects
+            hero' = head $ collissionHandledObjects
+            collissionHandledObjects = map (\(s, ss) -> handleCollissions s 
+                (moveableTiles ++ (map Moveable $ filter isObject ss))) objectList
+            objectList = generateObjectList $ hero : objects
+            objects = worldObjects world
+            hero = worldHero world
+            moveableTiles = (map Moveable $ worldCollideableTiles world)
+            diff = 0.080 * (fromIntegral $ ticks - (worldTicks world))
+
+
+controlObjectsWithAi :: World -> World
+controlObjectsWithAi world = world'
+    where   world' = world { worldObjects = objects }
+            objects = map (makeMove world) $ worldObjects world
+
+generateItemsFromDeadObjects :: World -> IO World
+generateItemsFromDeadObjects world = items' >>= \i -> 
+                                (return $ world { worldObjects = objects ++ i })
+    where   deadObjs = filter (\x -> (isDead x) && (isObject x)) objects
+            objects = worldObjects world
+            items = mapM (\o -> fmap ((numberToItem o) . (`mod` 100)) randomIO)
+                         deadObjs
+            items' = items >>= \i ->
+                        (return $ map (uncurry setItemPositionFromObject) 
+                                $ zip i deadObjs)
+
+
+addDeadAnimations :: World -> World
+addDeadAnimations world = world { worldAnimations = anis ++ deadAnis }
+    where   deadAnis = map toDeadAnimation deadObjects
+            deadObjects = filter (\x -> (isDead x) && (isObject x)) objects
+            anis = worldAnimations world
+            objects = worldObjects world
+
+advanceAnimations :: World -> Integer -> World
+advanceAnimations world ticks = world { worldAnimations = anis' }
+    where   anis = map (flip move diff) $ worldAnimations world
+            anis' = filter (not . isAnimationFinished) anis
+            diff = 0.080 * (fromIntegral $ ticks - (worldTicks world))
+
+
+filterDeadObjects :: World -> World
+filterDeadObjects world = world { worldObjects = objects }
+    where   objects = rejectDead $ worldObjects world
+
+updateTicks :: World -> Integer -> World
+updateTicks world ticks = world { worldTicks = ticks }
+
+computeScore :: World -> Integer
+computeScore world = sum $ map itemToScore $ map fst items
+    where   items = collidedItems world
+
+handleSounds :: World -> IO ()
+handleSounds world = do
+        mapM (doPlayItemSound world) $ map fst items
+        handlePlayAttackSound world
+        when (not . null $ filter (isCollission (boundingBox hero)) projs')
+            (playSound SoundHurt $ worldSounds world)
+        when (not . null $ filter (\x -> any (isCollission (boundingBox x)) myProjs') enemies)
+            (playSound SoundEnemyHit $ worldSounds world)
+        when (not . null $ deadObjects)
+            (playSound SoundEnemyKill $ worldSounds world)
+        when (objectHp hero <= 0 && deadAniStarted hero)
+            (playSound SoundGameOver $ worldSounds world)
+    where   items = collidedItems world
+            projectiles = filter isProjectile $ worldObjects world
+            enemyProjs = filter (isProjectileShooter (/=1)) projectiles
+            myProjs = filter (isProjectileShooter (==1)) projectiles
+            isProjectileShooter f p = isJust (projectileShooter p) && 
+               f (spriteId (objToSprite (fromJust (projectileShooter p))))
+            projs' = map boundingBox enemyProjs
+            myProjs' = map boundingBox myProjs
+            enemies = filter isObject objects
+            deadObjects = filter (\x -> (isDead x) && (isObject x)) objects
+            objects = worldObjects world
+            hero = worldHero world
+
+collidedItems :: World -> [(Object, BBox)]
+collidedItems world = filter ((isCollission $ boundingBox hero) . snd)
+                             (zip deadItems itemBoxes)
+    where   deadItems = filter (\x -> isDead x && isItem x) objects
+            itemBoxes = map boundingBox deadItems
+            objects = worldObjects world
+            hero = worldHero world
+
 eventHandler :: World -> IO ()
 eventHandler world = do
     render world
@@ -545,54 +672,69 @@ eventHandler world = do
     SDL.delay 10
 
     ticks <- SDL.getTicks >>= return . fromIntegral
-    let diff = 0.080 * (fromInteger $ ticks - (worldTicks world))
 
-    let world' = if (ticks - worldAiTicks world) > aiThreshold then resetAi world ticks
-                                                               else world
+    let world'  = moveObjects (doResetAi world ticks) ticks
+    let world'' = handleCollissionsForObjects world' ticks
+    let score = computeScore world'
+    world''' <- fmap ((flip updateTicks ticks) . filterDeadObjects . 
+                      addDeadAnimations . (flip advanceAnimations ticks) .
+                      controlObjectsWithAi) 
+                      (generateItemsFromDeadObjects world'')
+    let world'''' = withHeroDirection world''' (const $ worldInput world''')
 
-    let objects'      = map (flip move diff) $ worldObjects world'
-    let hero'         = move (worldHero world) diff
-    let moveableTiles = (map Moveable $ worldCollideableTiles world')
-    let objectList    = generateObjectList $ hero' : objects'
-    let (hero'' : objects'') = map (uncurry handleObjectEvents) objectList
-    let objectList'   = generateObjectList $ hero'' : objects''
-    let (hero''' : objects''') = map (\(s, ss) -> handleCollissions s (
-                            moveableTiles ++ (map Moveable $ filter isObject ss))) objectList'
-    let world'' = world' { worldObjects = rejectDead objects'''
-                         , worldHero    = hero'''
-                         , worldTicks   = ticks
-                         }
-
-    let objects'''' = map (makeMove world'') objects'''
-    let deadObjects = filter (\x -> (isDead x) && (isObject x)) objects''''
-    items <- mapM (\o -> fmap ((numberToItem o) . (`mod` 100)) randomIO) deadObjects
-    let items' = map (uncurry setItemPositionFromObject) $ zip items deadObjects
-    let anis = map (flip move diff) $ worldAnimations world'' ++ map toDeadAnimation deadObjects
-
-    let world''' = world'' { worldObjects    = rejectDead (objects'''' ++ items')
-                           , worldAnimations = filter (not .  isAnimationFinished) anis
-                           }
-    let world'''' = withHeroDirection world''' (const $ worldInput world''') 
-
-    let deadItems = filter (\x -> isDead x && isItem x) objects''
-    let itemBoxes = map boundingBox deadItems
-    let collidedItems = filter (isCollission (boundingBox hero') . snd) 
-                               (zip deadItems itemBoxes)
-    mapM (doPlayItemSound world) $ map fst collidedItems
-    let score = sum $ map itemToScore $ map fst collidedItems
-
-    let projectiles = filter isProjectile objects'
-    let enemyProjs = filter (\p -> isJust (projectileShooter p) && 
-           spriteId (objToSprite (fromJust (projectileShooter p))) /= 1)
-           projectiles
-    let projs' = map boundingBox enemyProjs
-    when (not . null $ filter (isCollission (boundingBox hero')) projs')
-        (playSound SoundHurt $ worldSounds world)
-
+    handleSounds world'
     handlePlayAttackSound world
 
     e <- SDL.pollEvent
-    handleEvent (handleAttacks $ increaseScore world'''' score) e
+    if (deadAniFinished $ worldHero world)
+        then showGameOver world''''
+        else handleEvent (handleGameOver $ handleAttacks $ increaseScore world'''' score) e
+
+
+showGameOver :: World -> IO ()
+showGameOver world = do
+    music <- SDLm.loadMUS "music/Game Over.mp3"
+    SDLm.playMusic music (-1)
+    showGameOver' world { worldBgm = music }
+
+showGameOver' :: World -> IO ()
+showGameOver' world = do
+    SDL.blitSurface gameOverSurface Nothing screen Nothing
+    SDL.flip $ screen
+    SDL.delay 20
+    e <- SDL.pollEvent
+    case e of 
+        SDL.Quit -> return ()
+        (SDL.KeyDown _) -> return ()
+        otherwise -> showGameOver' world
+    where   gameOverSurface = fromJust $ M.lookup gameOverId $ tex
+            tex = worldTextures world
+            screen = worldScreen world
+
+deadAniFinished :: Object -> Bool
+deadAniFinished obj | objectHp obj > 0 = False
+                    | otherwise = hasAniFinished && isDeadSprite
+    where   hasAniFinished = (animatorCount ani + 1) == animatorMaxCount ani
+            ani = spriteAnimator $ objToSprite obj 
+            isDeadSprite = heroDeadId == (spriteGraphic $ objToSprite obj)
+
+deadAniStarted :: Object -> Bool
+deadAniStarted obj = hasAniStarted && isDeadSprite
+    where   hasAniStarted = animatorCount ani == 0 
+                         && animatorFrameCount ani == 1
+            ani = spriteAnimator $ objToSprite obj 
+            isDeadSprite = heroDeadId == (spriteGraphic $ objToSprite obj)
+
+handleGameOver :: World -> World
+handleGameOver world | isHeroDead && not aniShown = world'
+                     | otherwise = world
+    where   isHeroDead = objectHp hero <= 0
+            hero = worldHero world
+            aniShown = (head $ moveStrategyMoves $ 
+                       objectMoveStrategy hero) /= DefaultMove
+            world' = world { worldHero = hero' 
+                           , worldObjects = []}
+            hero' = heroSetAni world (heroDead world)
 
 doPlaySword :: World -> Bool -> IO ()
 doPlaySword world False = return ()
@@ -710,6 +852,14 @@ heroBow _ dir = do
     setTextureOffset defaultCharOffset
     startAnimation heroAnimator
     startMoving
+
+heroDead :: World -> MoveLogger ()
+heroDead _ = do
+    stopMoving
+    setGraphic (heroDeadId)
+    setTextureOffset defaultBattleOffset
+    startAnimation heroDeadAnimation
+    waitAnimation
 
 heroSetSwordSlay :: World -> Direction -> Object
 heroSetSwordSlay world dir = heroSetAni world (heroSwordSlay world dir)

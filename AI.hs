@@ -203,7 +203,6 @@ linearizeDiagonalMove m p1@(x, y) p2@(x', y')
             isColPos1 = collissions !! (tileAt (fst pos1) (snd pos2))
             -- isColPos2 = collissions !! (tileAt (fst pos2) (snd pos1))
             tileAt a b = fromInteger $ width * b + a
-                                        
 
 tPlus :: Num a => (a, a) -> (a, a) -> (a, a)
 tPlus (a, b) (c, d) = (a + c, b + d)
@@ -268,4 +267,16 @@ makeNonRangedMove world obj | not $ isObject obj = obj
             heroPos = heroPosition world
 
 makeMove :: World -> Object -> Object
-makeMove world obj = makeFleeingMove world obj
+makeMove world obj | not $ isObject obj = obj
+                   | shouldFlee obj = makeFleeingMove world obj
+                   | shouldMakeRangedMove obj = makeRangedMove world obj
+                   | otherwise = makeNonRangedMove world obj
+
+shouldFlee :: Object -> Bool
+shouldFlee o = objectHp o == 1
+
+shouldMakeRangedMove :: Object -> Bool
+shouldMakeRangedMove o = weaponRange weapon > 3
+    where   weapon = weapons !! idx
+            weapons = objectWeapons o
+            idx = fromInteger $ objectActiveWeapon o
