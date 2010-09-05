@@ -220,7 +220,7 @@ handleObjectEvents target objs = foldl' handleObjectEvents' target objs
                 | otherwise = i
             handleObjectEvents'' o@(Object _ _ _ _ _ _ _ _) i@(Item _ _ _)
                 | isHero o = addItemToHero o i
-                | otherwise = i
+                | otherwise = o
             handleObjectEvents'' p@(Projectile _ _ _ _ _ _ _) i@(Item _ _ _) = p
             handleObjectEvents'' i@(Item _ _ _) p@(Projectile _ _ _ _ _ _ _) = i
 

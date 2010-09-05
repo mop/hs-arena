@@ -30,8 +30,10 @@ Executable fight
                      Animation
                      ChipsetViewer
                      Collission
+                     Graphics
                      Main
                      MapLoader
+                     Monster
                      Movemap
                      Object
                      Search

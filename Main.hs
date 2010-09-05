@@ -18,226 +18,11 @@ import Movemap
 import MapLoader
 import AI
 import Sound
-import Paths_fight
+import Graphics
+import Monster
 
 maxAmmo :: Integer
 maxAmmo = 30
-
-worldTile :: String
-worldTile  = "images/tileset1.png"
-crossPath :: String
-crossPath  = "images/cross.png"
-heroSprite :: String
-heroSprite = "images/hero.png"
-foeSprite :: String
-foeSprite = "images/foe-1.png"
-foe2Sprite :: String
-foe2Sprite = "images/foe-2.png"
-heartsSmall :: String
-heartsSmall = "images/hearts-small.png"
-heartsBig :: String
-heartsBig = "images/hearts-big.png"
-arrowLeft :: String
-arrowLeft = "images/arrow-left.png"
-arrowRight :: String
-arrowRight = "images/arrow-right.png"
-sword :: String
-sword = "images/sword.png"
-swordSprite :: String
-swordSprite = "images/sword-sprite.png"
-heroSwordUp :: String
-heroSwordUp = "images/hero-sword-up.png"
-heroSwordDown :: String
-heroSwordDown = "images/hero-sword-down.png"
-heroSwordLeft :: String
-heroSwordLeft = "images/hero-sword-left.png"
-heroSwordRight :: String
-heroSwordRight = "images/hero-sword-right.png"
-deadAnimationSpritePath :: String
-deadAnimationSpritePath = "images/enemy-dead.png"
-arrowSprite :: String
-arrowSprite = "images/arrow-sprite.png"
-bowSprite :: String
-bowSprite = "images/bow.png"
-heroBowUp :: String
-heroBowUp = "images/hero-bow-up.png"
-heroBowDown :: String
-heroBowDown = "images/hero-bow-down.png"
-heroBowLeft :: String
-heroBowLeft = "images/hero-bow-left.png"
-heroBowRight :: String
-heroBowRight = "images/hero-bow-right.png"
-digitsSprite :: String
-digitsSprite = "images/digits.png"
-rockSprite :: String
-rockSprite = "images/rock.png"
-rockIconSprite :: String
-rockIconSprite = "images/rock-icon.png"
-itemHeartSprite :: String
-itemHeartSprite = "images/item-heart.png"
-itemArrowSprite :: String
-itemArrowSprite = "images/item-arrow.png"
-rupeeIconSprite :: String
-rupeeIconSprite = "images/rupee-icon.png"
-itemRupeeGreenSprite :: String
-itemRupeeGreenSprite = "images/item-rupee-green.png"
-itemRupeeBlueSprite :: String
-itemRupeeBlueSprite = "images/item-rupee-blue.png"
-itemRupeeRedSprite :: String
-itemRupeeRedSprite = "images/item-rupee-red.png"
-itemRupeeGreenBigSprite :: String
-itemRupeeGreenBigSprite = "images/item-rupee-green-big.png"
-itemRupeeBlueBigSprite :: String
-itemRupeeBlueBigSprite = "images/item-rupee-blue-big.png"
-itemRupeeRedBigSprite :: String
-itemRupeeRedBigSprite = "images/item-rupee-red-big.png"
-heroDeadSprite :: String
-heroDeadSprite = "images/hero-dead.png"
-gameOverSprite :: String
-gameOverSprite = "images/game-over.png"
-
-heroGraphicId :: Integer
-heroGraphicId = 2
-foeGraphicId :: Integer
-foeGraphicId = 3
-foe2GraphicId :: Integer
-foe2GraphicId = 4
-heartsSmallId :: Integer
-heartsSmallId = 5
-heartsBigId :: Integer
-heartsBigId = 6
-arrowLeftId :: Integer
-arrowLeftId = 7
-arrowRightId :: Integer
-arrowRightId = 8
-swordId :: Integer
-swordId = 9
-swordSpriteId :: Integer
-swordSpriteId = 10
-heroSwordUpId :: Integer
-heroSwordUpId = 11
-heroSwordDownId :: Integer
-heroSwordDownId = 12
-heroSwordLeftId :: Integer
-heroSwordLeftId = 13
-heroSwordRightId :: Integer
-heroSwordRightId = 14
-deadAniId :: Integer
-deadAniId = 15
-arrowSpriteId :: Integer
-arrowSpriteId = 16
-bowSpriteId :: Integer
-bowSpriteId = 17
-heroBowUpId :: Integer
-heroBowUpId = 18
-heroBowDownId :: Integer
-heroBowDownId = 19
-heroBowLeftId :: Integer
-heroBowLeftId = 20
-heroBowRightId :: Integer
-heroBowRightId = 21
-digitsSpriteId :: Integer
-digitsSpriteId = 22
-rockSpriteId :: Integer
-rockSpriteId = 23
-rockIconSpriteId :: Integer
-rockIconSpriteId = 24
-itemHeartId :: Integer
-itemHeartId = 25
-itemArrowId :: Integer
-itemArrowId = 26
-rupeeIconId :: Integer
-rupeeIconId = 27
-itemRupeeGreenId :: Integer
-itemRupeeGreenId = 28
-itemRupeeBlueId :: Integer
-itemRupeeBlueId = 29
-itemRupeeRedId :: Integer
-itemRupeeRedId = 30
-itemRupeeGreenBigId :: Integer
-itemRupeeGreenBigId = 31
-itemRupeeBlueBigId :: Integer
-itemRupeeBlueBigId = 32
-itemRupeeRedBigId :: Integer
-itemRupeeRedBigId = 33
-heroDeadId :: Integer
-heroDeadId = 34
-gameOverId :: Integer
-gameOverId = 35
-
-loadGraphics :: IO TextureMap
-loadGraphics = do
-    crossGraphic <- SDLi.load crossPath
-    heroGraphic  <- SDLi.load heroSprite
-    foeGraphic  <- SDLi.load foeSprite
-    foe2Graphic  <- SDLi.load foe2Sprite
-    heartsSmallGraphic  <- SDLi.load heartsSmall
-    heartsBigGraphic  <- SDLi.load heartsBig
-    arrowLeftGraphic  <- SDLi.load arrowLeft
-    arrowRightGraphic  <- SDLi.load arrowRight
-    swordGraphic  <- SDLi.load sword
-    swordSpriteGraphic  <- SDLi.load swordSprite
-    heroSwordUpGraphic <- SDLi.load heroSwordUp
-    heroSwordDownGraphic <- SDLi.load heroSwordDown
-    heroSwordLeftGraphic <- SDLi.load heroSwordLeft
-    heroSwordRightGraphic <- SDLi.load heroSwordRight
-    deadAnimationGraphic <- SDLi.load deadAnimationSpritePath
-    arrowGraphic <- SDLi.load arrowSprite
-    bowGraphic <- SDLi.load bowSprite
-    heroBowUpGraphic <- SDLi.load heroBowUp
-    heroBowDownGraphic <- SDLi.load heroBowDown
-    heroBowLeftGraphic <- SDLi.load heroBowLeft
-    heroBowRightGraphic <- SDLi.load heroBowRight
-    digitsSpriteGraphic <- SDLi.load digitsSprite
-    rockSpriteGraphic <- SDLi.load rockSprite
-    rockIconSpriteGraphic <- SDLi.load rockIconSprite
-    itemHeartSpriteGraphic <- SDLi.load itemHeartSprite
-    itemArrowSpriteGraphic <- SDLi.load itemArrowSprite
-    rupeeIconGraphic <- SDLi.load rupeeIconSprite
-    itemRupeeGreenGraphic <- SDLi.load itemRupeeGreenSprite
-    itemRupeeBlueGraphic <- SDLi.load itemRupeeBlueSprite
-    itemRupeeRedGraphic <- SDLi.load itemRupeeRedSprite
-    itemRupeeGreenBigGraphic <- SDLi.load itemRupeeGreenBigSprite
-    itemRupeeBlueBigGraphic <- SDLi.load itemRupeeBlueBigSprite 
-    itemRupeeRedBigGraphic <- SDLi.load itemRupeeRedBigSprite
-    heroDeadGraphic <- SDLi.load heroDeadSprite
-    gameOverGraphic <- SDLi.load gameOverSprite
-    return $ M.fromList [ (1, crossGraphic)
-                        , (heroGraphicId, heroGraphic)
-                        , (foeGraphicId, foeGraphic)
-                        , (foe2GraphicId, foe2Graphic)
-                        , (heartsSmallId, heartsSmallGraphic)
-                        , (heartsBigId, heartsBigGraphic)
-                        , (arrowLeftId, arrowLeftGraphic)
-                        , (arrowRightId, arrowRightGraphic)
-                        , (swordId, swordGraphic)
-                        , (swordSpriteId, swordSpriteGraphic)
-                        , (heroSwordUpId, heroSwordUpGraphic)
-                        , (heroSwordDownId, heroSwordDownGraphic)
-                        , (heroSwordLeftId, heroSwordLeftGraphic)
-                        , (heroSwordRightId, heroSwordRightGraphic)
-                        , (deadAniId, deadAnimationGraphic)
-                        , (arrowSpriteId, arrowGraphic)
-                        , (bowSpriteId, bowGraphic)
-                        , (heroBowUpId, heroBowUpGraphic)
-                        , (heroBowDownId, heroBowDownGraphic)
-                        , (heroBowLeftId, heroBowLeftGraphic)
-                        , (heroBowRightId, heroBowRightGraphic)
-                        , (digitsSpriteId, digitsSpriteGraphic)
-                        , (rockSpriteId, rockSpriteGraphic)
-                        , (rockIconSpriteId, rockIconSpriteGraphic)
-                        , (itemHeartId, itemHeartSpriteGraphic)
-                        , (itemArrowId, itemArrowSpriteGraphic)
-                        , (rupeeIconId, rupeeIconGraphic)
-                        , (itemRupeeGreenId, itemRupeeGreenGraphic)
-                        , (itemRupeeBlueId, itemRupeeBlueGraphic)
-                        , (itemRupeeRedId, itemRupeeRedGraphic)
-                        , (itemRupeeGreenBigId, itemRupeeGreenBigGraphic)
-                        , (itemRupeeBlueBigId, itemRupeeBlueBigGraphic)
-                        , (itemRupeeRedBigId, itemRupeeRedBigGraphic)
-                        , (heroDeadId, heroDeadGraphic)
-                        , (gameOverId, gameOverGraphic)
-                        ]
 
 heroSwordAnimations :: [(Direction, Integer)]
 heroSwordAnimations = [ (DirUp, heroSwordUpId)
@@ -456,8 +241,8 @@ main = do
     textures <- loadGraphics
     ticks <- SDL.getTicks >>= return . fromIntegral
     sounds <- loadSounds
-    let world = World screen [] [] [genRangedFoe, genHeartItem] [] genHero textures 
-                      ticks ticks defaultVector 0 music sounds
+    let world = World screen [] [] (monstersForLevel 0) [] genHero textures 
+                      ticks ticks defaultVector 0 music sounds 0 []
     world' <- loadMap "images/map.tmx" world
 
     SDLm.playMusic music (-1)
@@ -688,7 +473,8 @@ eventHandler world = do
     e <- SDL.pollEvent
     if (deadAniFinished $ worldHero world)
         then showGameOver world''''
-        else handleEvent (handleGameOver $ handleAttacks $ increaseScore world'''' score) e
+        else handleEvent (advanceLevel $ handleGameOver $ 
+                          handleAttacks $ increaseScore world'''' score) e
 
 
 showGameOver :: World -> IO ()

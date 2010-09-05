@@ -189,5 +189,7 @@ data World = World {
   , worldScore            :: !Integer
   , worldBgm              :: !SDLm.Music
   , worldSounds           :: !SoundMap
+  , worldLevel            :: !Integer
+  , worldPendingMonster   :: ![Object]
 }
 
