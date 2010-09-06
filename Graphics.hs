@@ -84,6 +84,8 @@ foe3GraphicId :: Integer
 foe3GraphicId = 36
 foe4GraphicId :: Integer
 foe4GraphicId = 37
+titleGraphicId = 38
+titleArrowGraphicId = 39
 
 graphicTextureMap :: [(Integer, String)]
 graphicTextureMap = [ (crossGraphicId,      "images/cross.png")
@@ -123,6 +125,8 @@ graphicTextureMap = [ (crossGraphicId,      "images/cross.png")
                     , (gameOverId,          "images/game-over.png")
                     , (foe3GraphicId,       "images/foe-3.png")
                     , (foe4GraphicId,       "images/foe-4.png")
+                    , (titleGraphicId,      "images/titlescreen.png")
+                    , (titleArrowGraphicId, "images/title-arrow.png")
                     ]
 
 

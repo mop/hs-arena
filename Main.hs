@@ -246,10 +246,75 @@ main = do
     world' <- loadMap "images/map.tmx" world
 
     SDLm.playMusic music (-1)
-    eventHandler world'
+    --eventHandler world'
+    titlescreen world' (TitleMenu 0)
 
     SDLm.closeAudio
     SDL.quit
+
+initWorld :: World -> IO ()
+initWorld world = do
+    music <- SDLm.loadMUS "music/music.mp3"
+    SDLm.playMusic music (-1)
+    ticks <- fmap fromIntegral SDL.getTicks
+    let world' = world { worldObjects = monstersForLevel 0
+                       , worldHero = genHero
+                       , worldTicks = ticks
+                       , worldAiTicks = ticks
+                       , worldBgm = music
+                       , worldInput = defaultVector
+                       , worldScore = 0
+                       , worldLevel = 0
+                       , worldPendingMonster = []
+                       }
+    eventHandler world'
+
+data TitleMenu = TitleMenu {
+    titleArrowPosition :: Integer
+}
+
+
+showMenu :: World -> TitleMenu -> IO ()
+showMenu w menu | titleArrowPosition menu == 2 = return ()     -- exit
+                | titleArrowPosition menu == 0 = initWorld w
+                | titleArrowPosition menu == 1 = return () -- not implemented yet
+
+titleMenuDown :: TitleMenu -> TitleMenu
+titleMenuDown menu = menu { titleArrowPosition = position' }
+    where   position' = (titleArrowPosition menu + 1) `mod` 3
+
+titleMenuUp :: TitleMenu -> TitleMenu
+titleMenuUp menu = menu { titleArrowPosition = position' }
+    where   position' | position == 0 = 2
+                      | otherwise = position - 1
+            position = titleArrowPosition menu
+
+titlescreen :: World -> TitleMenu -> IO ()
+titlescreen world menu = do
+    music <- SDLm.loadMUS "music/Intro Screen.mp3"
+    SDLm.playMusic music (-1)
+    titlescreen' world { worldBgm = music } menu
+
+titlescreen' :: World -> TitleMenu -> IO ()
+titlescreen' world menu = do
+    let screen = worldScreen world
+    let title = fromJust $ M.lookup titleGraphicId $ worldTextures world
+    let arrow = fromJust $ M.lookup titleArrowGraphicId $ worldTextures world
+    SDL.blitSurface title Nothing screen Nothing
+    let pos = fromInteger $ titleArrowPosition menu
+    let dstRect = SDL.Rect 120 (165 + pos * 15) 19 20
+    SDL.blitSurface arrow Nothing screen (Just $ dstRect)
+    SDL.flip screen
+    e <- SDL.pollEvent
+    case e of 
+        SDL.KeyDown (SDL.Keysym SDL.SDLK_DOWN _ _) -> 
+            titlescreen' world (titleMenuDown menu)
+        SDL.KeyDown (SDL.Keysym SDL.SDLK_UP _ _) -> 
+            titlescreen' world (titleMenuUp menu)
+        SDL.KeyDown (SDL.Keysym SDL.SDLK_SPACE _ _) -> 
+            showMenu world menu
+        SDL.Quit -> return ()
+        otherwise -> titlescreen' world menu
 
 handleCollissions :: Object -> [Moveable] -> Object
 handleCollissions obj xs | not . isObject $ obj = obj 
@@ -491,7 +556,7 @@ showGameOver' world = do
     e <- SDL.pollEvent
     case e of 
         SDL.Quit -> return ()
-        (SDL.KeyDown _) -> return ()
+        (SDL.KeyDown _) -> titlescreen world (TitleMenu 0)
         otherwise -> showGameOver' world
     where   gameOverSurface = fromJust $ M.lookup gameOverId $ tex
             tex = worldTextures world
