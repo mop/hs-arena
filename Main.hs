@@ -20,6 +20,7 @@ import AI
 import Sound
 import Graphics
 import Monster
+import Highscore
 
 maxAmmo :: Integer
 maxAmmo = 30
@@ -234,15 +235,17 @@ foreign export ccall "haskell_main" main :: IO ()
 main :: IO ()
 main = do
     SDL.init [SDL.InitVideo, SDL.InitAudio]
+    SDL.enableUnicode True
     SDLm.openAudio audioRate audioFormat audioChannels audioBuffers 
     music <- SDLm.loadMUS "music/music.mp3"
     screen <- SDL.setVideoMode 320 240 32 []
 
+    highscore <- loadHighscore
     textures <- loadGraphics
     ticks <- SDL.getTicks >>= return . fromIntegral
     sounds <- loadSounds
     let world = World screen [] [] (monstersForLevel 0) [] genHero textures 
-                      ticks ticks defaultVector 0 music sounds 0 []
+                      ticks ticks defaultVector 0 music sounds 0 [] highscore
     world' <- loadMap "images/map.tmx" world
 
     SDLm.playMusic music (-1)
@@ -274,10 +277,20 @@ data TitleMenu = TitleMenu {
 }
 
 
+showHighscore :: World -> IO ()
+showHighscore world = do
+    renderHighscore world
+    SDL.delay 10
+    e <- SDL.pollEvent
+    case e of
+        SDL.Quit -> return ()
+        SDL.KeyDown _ -> titlescreen' world $ TitleMenu 1
+        otherwise -> showHighscore world
+
 showMenu :: World -> TitleMenu -> IO ()
 showMenu w menu | titleArrowPosition menu == 2 = return ()     -- exit
                 | titleArrowPosition menu == 0 = initWorld w
-                | titleArrowPosition menu == 1 = return () -- not implemented yet
+                | titleArrowPosition menu == 1 = showHighscore w
 
 titleMenuDown :: TitleMenu -> TitleMenu
 titleMenuDown menu = menu { titleArrowPosition = position' }
@@ -556,7 +569,9 @@ showGameOver' world = do
     e <- SDL.pollEvent
     case e of 
         SDL.Quit -> return ()
-        (SDL.KeyDown _) -> titlescreen world (TitleMenu 0)
+        (SDL.KeyDown _) -> (doHighscoreInput world >>= \w -> 
+                            writeHighscore (worldHighscores w) >>
+                            titlescreen w (TitleMenu 0))
         otherwise -> showGameOver' world
     where   gameOverSurface = fromJust $ M.lookup gameOverId $ tex
             tex = worldTextures world

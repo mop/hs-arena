@@ -191,5 +191,7 @@ data World = World {
   , worldSounds           :: !SoundMap
   , worldLevel            :: !Integer
   , worldPendingMonster   :: ![Object]
+  , worldHighscores       :: ![HighscoreEntry]
 }
 
+type HighscoreEntry = (String, Integer)
