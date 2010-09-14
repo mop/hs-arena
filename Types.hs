@@ -39,6 +39,12 @@ data Tile = Tile {
   , tileCollissionLayer :: Double
 } deriving (Show, Eq)
 
+data TileLayer = TileLayer {
+    tileLayerSurface :: SDL.Surface
+  , tileLayerGraphic :: Integer
+  , tileLayerZ :: Double
+} deriving (Show, Eq)
+
 defaultTile = Tile 0 0 defaultBBox
 defaultTile' = Tile 0 0 defaultBBox { bboxZ = 1.0 }
 
@@ -145,6 +151,16 @@ data Object = Object {
       itemSprite :: !Sprite
     , itemTime   :: !Integer
     , itemType   :: !ItemType
+  } | 
+  WormBoss {
+      wormHp              :: !Integer
+    , wormVelocity        :: !Integer
+    , wormSprites         :: ![Sprite]
+    , wormWeapons         :: ![Weapon]
+    , wormActiveWeapon    :: !Integer
+    , wormWeaponLastShoot :: !Integer
+    , wormDefaultAnimator :: !Animator
+    , wormMoveStrategy    :: !MoveStrategy
   } deriving (Show, Eq)
 
 data Weapon = Weapon {
@@ -179,6 +195,7 @@ data World = World {
     worldScreen           :: !SDL.Surface
   , worldTiles            :: ![Tile]
   , worldCollideableTiles :: ![Tile]
+  , worldTileLayer        :: ![TileLayer]
   , worldObjects          :: ![Object]
   , worldAnimations       :: ![Sprite]
   , worldHero             :: !Object

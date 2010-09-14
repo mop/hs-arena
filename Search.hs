@@ -9,19 +9,20 @@ import qualified Data.PSQueue as PQ
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Maybe
+import Array
 
 import System.IO.Unsafe (unsafePerformIO)
 
 data Map = Map {
     mapWidth       :: Integer
   , mapHeight      :: Integer
-  , mapCollissions :: [Bool]
+  , mapCollissions :: Array Int Bool
   } deriving (Eq, Show)
 
 type Position = (Integer, Integer)
 
 mapTileAt :: Map -> Position -> Bool
-mapTileAt (Map w h xs) (x, y) = xs !! (fromInteger $ (w * y) + x)
+mapTileAt (Map w h xs) (x, y) = xs ! (fromInteger $ (w * y) + x)
 
 distBetween :: Position -> Position -> Double
 distBetween (fromX, fromY) (toX, toY) = sqrt $ diffX * diffX + diffY * diffY

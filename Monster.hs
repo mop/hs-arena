@@ -34,6 +34,7 @@ yellowFoe = Object 1 3 fSprite [weaponSword'] 0 0 charAnimator defaultMoveStrate
 wSprite = defaultSprite { spriteId = 100
                         , spriteGraphic = swordSpriteId
                         , spriteTextureOffset = defaultCharOffset
+                        , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
                         , spriteAnimator = charAnimator
                         } 
 
@@ -55,6 +56,7 @@ rangedFoe = Object 1 3 fSprite [weaponStone] 0 0 charAnimator defaultMoveStrateg
                                     , spriteGraphic = rockSpriteId
                                     , spriteTextureOffset = defaultCharOffset
                                     , spriteAnimator = charAnimator
+                                    , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
                                     }
 
 
@@ -106,7 +108,7 @@ tryPlaceMonster world | null pending = world
                                bboxX = (x * 16.0)
                              , bboxY = (y * 16.0)
                              }}
-            sprite = objToSprite $ (head pending)
+            sprite = head $ objToSprites $ (head pending)
             x = fromInteger $ fst spawnPoint
             y = fromInteger $ snd spawnPoint
 

@@ -14,6 +14,7 @@ module Movemap
     , startAnimation
     , waitAnimation
     , waitMoving
+    , isAiMove
     )
 where
 
@@ -74,3 +75,7 @@ startAnimation = setMove . SetAnimation
 
 waitAnimation :: MoveLogger ()
 waitAnimation = setMove WaitAnimation
+
+isAiMove :: Move -> Bool
+isAiMove (MoveTo _ _ AI) = True
+isAiMove _ = False

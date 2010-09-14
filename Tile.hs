@@ -24,6 +24,11 @@ bboxToRect (BBox x y _ w h) = SDL.Rect x' y' w' h'
             w' = round w
             h' = round h
 
+bboxSetPosition :: BBox -> Vector -> BBox 
+bboxSetPosition box (Vector x y z) = box { bboxX = x
+                                         , bboxY = y
+                                         , bboxZ = z }
+
 bboxToVector :: BBox -> Vector
 bboxToVector (BBox x y z w h) = Vector x y z
 
@@ -50,6 +55,13 @@ instance Drawable_ Tile where
                 texX surface = width * (fromInteger $ (tileIndex tile) `mod` (surfW surface))
     zOrder = bboxZ . tilePosition 
     texture = tileGraphic 
+
+instance Drawable_ TileLayer where
+    draw layer = ask >>= \(PlotData bg tex) -> 
+                    (liftIO $ SDL.blitSurface (tex) Nothing
+                                             bg Nothing) >> return ()
+    zOrder = tileLayerZ
+    texture = tileLayerGraphic
 
 instance Drawable_ IntegerSprite where
     draw intSprite = mapM_ (uncurry doDraw) $ zip texRects bgRects
@@ -120,12 +132,17 @@ sprite = Drawable
 tile :: Tile -> Drawable
 tile = Drawable
 
+tileLayer :: TileLayer -> Drawable
+tileLayer = Drawable
+
 sortByZ :: [Drawable] -> [Drawable]
 sortByZ = sortBy (\a b -> compare (zOrder a) (zOrder b))
 
 class (Show a) => Moveable_ a where
     move :: a -> Double -> a
     boundingBox :: a -> BBox
+    boundingBoxes :: a -> [BBox]
+    boundingBoxes m = [boundingBox m]
     direction :: a -> Vector
 
 instance Moveable_ Tile where

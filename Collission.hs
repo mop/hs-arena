@@ -46,3 +46,11 @@ collissionResponse dir box1 box2 | not (isCollission box1 box2) = box1
                          $ filter ((> 0) . fst) colls
     where   maxX = - vecX dir
             maxY = - vecY dir
+
+collissionResponse' :: Vector -> BBox -> BBox -> Vector
+collissionResponse' dir box1 box2 | not (isCollission box1 box2) = defaultVector
+                                  | otherwise = diffVec
+    where   diffVec = Vector (bboxX box' - bboxX box1) (bboxY box' - bboxY box1)
+                             (bboxZ box' - bboxZ box1)
+            box' = collissionResponse dir box1 box2
+

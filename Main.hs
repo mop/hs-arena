@@ -3,11 +3,12 @@ import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Image as SDLi
 import qualified Graphics.UI.SDL.Mixer as SDLm
 import qualified Data.Map as M
-import Data.List (foldl', minimumBy)
+import Data.List (foldl', minimumBy, groupBy)
 import Control.Monad (forM, when)
 import Control.Monad.Reader (runReaderT)
 import Maybe (fromJust, isJust)
 import Random (randomIO)
+import System.IO.Unsafe (unsafePerformIO)
 
 import Types
 import Tile
@@ -36,6 +37,7 @@ weaponSword = Weapon 1 wSprite 1 10 swordId 600 0 (-1) heroSwordAnimations
 wSprite = defaultSprite { spriteId = 100
                         , spriteGraphic = swordSpriteId
                         , spriteTextureOffset = defaultCharOffset
+                        , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
                         , spriteAnimator = charAnimator
                         } 
 heroBowAnimations :: [(Direction, Integer)]
@@ -48,6 +50,7 @@ heroBowAnimations = [ (DirUp, heroBowUpId)
 weaponArrow = Weapon 2 bSprite 100 5 bowSpriteId 800 (3 * 4) 30 heroBowAnimations
 bSprite = defaultSprite { spriteId = 101
                         , spriteGraphic = arrowSpriteId
+                        , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
                         , spriteTextureOffset = defaultCharOffset
                         , spriteAnimator = charAnimator
                         }
@@ -124,9 +127,9 @@ genRupeeItem o = Item sprite 300 $ ItemRupee rupees
 render :: World -> IO ()
 render world = forM graphics drawGraphic >> return ()
     where   graphics = sortByZ $ tiles ++ sprites ++ anis
-            tiles = map tile $ worldTiles world
+            tiles = map tileLayer $ worldTileLayer world
             sprites = (sprite $ objectSprite $ worldHero world) : 
-                      (map (sprite . objToSprite) $ drawObjects) 
+                      (map sprite (concatMap objToSprites $ drawObjects))
             objects = filter isObject $ worldObjects world
             projectiles = filter isProjectile $ worldObjects world
             items = filter isItem $ worldObjects world
@@ -211,12 +214,16 @@ renderControls world = renderHp world
 tilesetIds :: [Integer]
 tilesetIds = [500..]
 
+adjustAlpha :: SDL.Surface -> IO ()
+adjustAlpha sf = SDL.setAlpha sf [] 255 >> return ()
+
 loadMap :: String -> World -> IO World
 loadMap filename world = do
     sets <- loadTilesets filename
     let zippedTiles = zip tilesetIds sets
     let graphics = map (\(i, (_, surface)) -> (i, surface)) zippedTiles
     let tilesets = map (\(i, (ts, _)) -> (i, ts)) zippedTiles
+    mapM_ (adjustAlpha . snd) graphics
     tiles <- loadTiles filename tilesets
 
     return (world { worldTiles = tiles
@@ -225,6 +232,25 @@ loadMap filename world = do
                                             (M.fromList graphics)
                   })
 
+
+preloadMapLayers :: World -> IO World
+preloadMapLayers world = do
+            layers <- mapM createSurfaceForTiles $ zip [6666..] groupedTiles
+            let m = M.fromList $ map (\x -> (tileLayerGraphic x, tileLayerSurface x)) layers
+            return (world { worldTileLayer = layers
+                          , worldTextures = M.union (worldTextures world) m})
+    where   groupedTiles = groupBy (\x y -> zOrder x == zOrder y) tiles
+            tiles = worldTiles world
+            createSurfaceForTiles (idx, ts) = do
+                sf <- SDL.createRGBSurfaceEndian [SDL.HWSurface] 320 240 32 
+                pixel <- SDL.mapRGBA (SDL.surfaceGetPixelFormat sf) 0 0 0 0
+                SDL.fillRect sf Nothing pixel
+                mapM ((flip drawGraphic) sf) ts
+                let tile = head ts
+                return $ TileLayer sf idx (zOrder tile)
+            theTexture s = M.lookup (texture s) (worldTextures world)
+            plotData s sf = PlotData sf (fromJust (theTexture s))
+            drawGraphic s sf = runReaderT (draw s) (plotData s sf)
 
 audioRate = 22050
 audioFormat = SDL.AudioS16Sys
@@ -244,9 +270,9 @@ main = do
     textures <- loadGraphics
     ticks <- SDL.getTicks >>= return . fromIntegral
     sounds <- loadSounds
-    let world = World screen [] [] (monstersForLevel 0) [] genHero textures 
+    let world = World screen [] [] [] (monstersForLevel 0) [] genHero textures 
                       ticks ticks defaultVector 0 music sounds 0 [] highscore
-    world' <- loadMap "images/map.tmx" world
+    world' <- (loadMap "images/map.tmx" world >>= preloadMapLayers)
 
     SDLm.playMusic music (-1)
     --eventHandler world'
@@ -329,30 +355,11 @@ titlescreen' world menu = do
         SDL.Quit -> return ()
         otherwise -> titlescreen' world menu
 
-handleCollissions :: Object -> [Moveable] -> Object
-handleCollissions obj xs | not . isObject $ obj = obj 
-                         | otherwise = foldl' handleCollissions' obj xs
-    where   handleCollissions' o moveable = modifySprite (\spr -> 
-                                                spr { 
-                                                    spritePosition = spritePos spr moveable 
-                                                }) o'
-                where   o' | isCollission objBox movBox = o { objectMoveStrategy = strat }
-                           | otherwise = o
-                        objBox = boundingBox o
-                        movBox = boundingBox moveable
-                        strat = let (MoveStrategy moves flag) = objectMoveStrategy o
-                                    moves' = dropWhile (isAiMove) moves
-                                in (MoveStrategy moves' flag)
-                        
-            spritePos spr moveable = collissionResponse (spriteDirection spr `vecMulD` spriteMoveDiff spr) 
-                                                        (spritePosition spr) 
-                                                        (boundingBox moveable)
-
 generateObjectList :: [Object] -> [(Object, [Object])]
 generateObjectList objects = map makeTuple objects
     where   makeTuple object = ( object
-                               , filter (\x -> (spriteId . objToSprite) x /=
-                                 (spriteId . objToSprite) object) objects
+                               , filter (\x -> objId x /=
+                                 objId object) objects
                                )
 
 aiThreshold :: Integer
@@ -379,9 +386,8 @@ deadAnimationSprite =
 
 toDeadAnimation :: Object -> Sprite
 toDeadAnimation obj = deadAnimationSprite { spritePosition = pos }
-    where   sprite = objToSprite obj
-            pos = (spritePosition sprite) { bboxZ = 2.0, bboxX = posX }
-            posX = (bboxX $ spritePosition sprite) - 4
+    where   pos = (boundingBox obj) { bboxZ = 2.0, bboxX = posX }
+            posX = (bboxX $ boundingBox obj) - 4
 
 isAnimationFinished :: Sprite -> Bool
 isAnimationFinished spr = animatorCount ani + 1 == animatorMaxCount ani
@@ -396,7 +402,7 @@ numberToItem o num | num < 50 = genHeartItem { itemTime = 0 }
 setItemPositionFromObject :: Object -> Object -> Object
 setItemPositionFromObject item obj = item { itemSprite = spr }
     where   spr = (itemSprite item) { spritePosition = pos }
-            pos = spritePosition $ objToSprite obj
+            pos = boundingBox obj
             
 
 doPlayItemSound :: World -> Object -> IO ()
@@ -442,7 +448,7 @@ handleCollissionsForObjects world ticks = world'
                            }
             objects' = tail $ collissionHandledObjects
             hero' = head $ collissionHandledObjects
-            collissionHandledObjects = map (\(s, ss) -> handleCollissions s 
+            collissionHandledObjects = map (\(s, ss) -> objHandleCollission s 
                 (moveableTiles ++ (map Moveable $ filter isObject ss))) objectList
             objectList = generateObjectList $ hero : objects
             objects = worldObjects world
@@ -510,7 +516,7 @@ handleSounds world = do
             enemyProjs = filter (isProjectileShooter (/=1)) projectiles
             myProjs = filter (isProjectileShooter (==1)) projectiles
             isProjectileShooter f p = isJust (projectileShooter p) && 
-               f (spriteId (objToSprite (fromJust (projectileShooter p))))
+               f (objId (fromJust (projectileShooter p)))
             projs' = map boundingBox enemyProjs
             myProjs' = map boundingBox myProjs
             enemies = filter isObject objects
@@ -581,15 +587,15 @@ deadAniFinished :: Object -> Bool
 deadAniFinished obj | objectHp obj > 0 = False
                     | otherwise = hasAniFinished && isDeadSprite
     where   hasAniFinished = (animatorCount ani + 1) == animatorMaxCount ani
-            ani = spriteAnimator $ objToSprite obj 
-            isDeadSprite = heroDeadId == (spriteGraphic $ objToSprite obj)
+            ani = spriteAnimator $ head $ objToSprites obj 
+            isDeadSprite = heroDeadId == (spriteGraphic $ head $ objToSprites obj)
 
 deadAniStarted :: Object -> Bool
 deadAniStarted obj = hasAniStarted && isDeadSprite
     where   hasAniStarted = animatorCount ani == 0 
                          && animatorFrameCount ani == 1
-            ani = spriteAnimator $ objToSprite obj 
-            isDeadSprite = heroDeadId == (spriteGraphic $ objToSprite obj)
+            ani = spriteAnimator $ head $ objToSprites obj 
+            isDeadSprite = heroDeadId == (spriteGraphic $ head $ objToSprites obj)
 
 handleGameOver :: World -> World
 handleGameOver world | isHeroDead && not aniShown = world'
