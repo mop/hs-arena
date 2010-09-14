@@ -11,10 +11,17 @@ import System.IO.Unsafe (unsafePerformIO)
 defaultCharOffset :: Vector
 defaultCharOffset = Vector 4.0 16.0 0.0
 
+wormCharOffset :: Vector
+wormCharOffset = Vector 8.0 8.0 0.0
+
 defaultBattleOffset :: Vector
 defaultBattleOffset = Vector 40.0 48.0 0.0
 
 charAnimator = CustomAnimator charAnimation charMoveNext 4 10 0 0
+wormHeadAnimator = CustomAnimator (wormOffsetAnimation 0 0) charMoveNext 4 10 0 0
+wormPointAnimator = CustomAnimator (wormOffsetAnimation 0 128) charMoveNext 4 10 0 0
+wormMiddleAnimator = CustomAnimator (wormOffsetAnimation 96 0) charMoveNext 4 10 0 0
+wormTailAnimator = CustomAnimator (wormOffsetAnimation 96 128) charMoveNext 4 10 0 0
 fixedCharAnimator :: Direction -> Animator
 fixedCharAnimator dir = CustomAnimator (fixedCharAnimation dir) charMoveNext 4 10 0 0
 fixedWoundedCharAnimator :: Direction -> Animator
@@ -95,6 +102,18 @@ charAnimation sprite = SDL.Rect xTexCoord yTexCoord 24 32
             animator = spriteAnimator sprite
             direction = spriteDirection sprite
 
+wormOffsetAnimation :: Int -> Int -> Sprite -> SDL.Rect
+wormOffsetAnimation offX offY sprite = SDL.Rect (offX + xTexCoord) (offY + yTexCoord) 32 32
+    where   yTexCoord | zeroVec direction =
+                            directionToYTex .  vectorToDirection $
+                                spritePrevDirection sprite
+                      | otherwise = 
+                            directionToYTex . vectorToDirection $ 
+                                spriteDirection sprite
+            xTexCoord = aniCountToXTex' (animatorCount animator)
+            animator = spriteAnimator sprite
+            direction = spriteDirection sprite
+
 charMoveNext :: Sprite -> Animator
 charMoveNext spr = (spriteAnimator spr) { animatorFrameCount = frameCount'
                                         , animatorCount = count' }
@@ -146,3 +165,7 @@ aniCountToXTex 1 = 48
 aniCountToXTex 2 = 24
 aniCountToXTex 3 = 0
 
+aniCountToXTex' 0 = 32
+aniCountToXTex' 1 = 64
+aniCountToXTex' 2 = 32
+aniCountToXTex' 3 = 0

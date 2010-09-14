@@ -48,7 +48,8 @@ markCollission = markCollissionWith True
 unmarkCollission :: Array Int Bool  -> Integer -> Integer -> (Int, Int) -> Array Int Bool
 unmarkCollission = markCollissionWith False
 markCollissionWith :: Bool -> Array Int Bool -> Integer -> Integer -> (Int, Int) -> Array Int Bool
-markCollissionWith flag cols w _ (x, y) = cols // [(index, flag)]
+markCollissionWith flag cols w _ (x, y) | index >= 0 = cols // [(index, flag)]
+                                        | otherwise = cols
     where   index = fromInteger $ w * fromIntegral y + fromIntegral x
 
 moveableCoords :: Moveable_ a => a -> [(Int, Int)]
@@ -78,7 +79,7 @@ joinMapsInv xs = foldl' reducer (head xs) $ tail xs
 constructMap :: World -> Map
 constructMap world = Map width height collissions'
     where   collissions  = foldr reducer' (emptyCollissionMap world) (worldTiles world)
-            collissions' = foldr reducer (collissions) (filter isObject $ objs)
+            collissions' = foldr reducer (collissions) (filter isEnemy $ objs)
             objs = worldObjects world
             width  = worldWidth world
             height = worldHeight world
@@ -160,7 +161,7 @@ getDirectionTowards src dst = Vector xDir yDir 0.0
 
 handleAttacks :: World -> World
 handleAttacks world = world { worldObjects = projectiles ++ inRangeObjs' ++ objects' }
-    where   objects = filter (\o -> isObject o && objectCanAttack world o) $ worldObjects world
+    where   objects = filter (\o -> isEnemy o && objectCanAttack world o) $ worldObjects world
             inRangeObjs = filter isHeroInRange objects
             inRangeObjs' = map updateObj inRangeObjs
             rangedObjIds = map objId inRangeObjs'
@@ -230,10 +231,10 @@ makeRangedMove world obj = makeShortestTargetsMove world obj targets
                       ]
 
 makeShortestTargetsMove :: World -> Object -> [Position] -> Object
-makeShortestTargetsMove world obj targets | not $ isObject obj = obj
+makeShortestTargetsMove world obj targets | not $ isEnemy obj = obj
                                           | not $ isAllowedMove obj = obj
                                           | otherwise = 
-                let MoveStrategy moves canMove = objectMoveStrategy obj
+                let MoveStrategy moves canMove = objMoveStrategy obj
                 in objSetMoveStrategy obj $  MoveStrategy (shortestMove ++ moves) canMove
     where   objPos = objectPosition obj
             targetMoves = map (makeSearch world obj) targets
@@ -254,25 +255,25 @@ makeFleeingMove world obj = makeShortestTargetsMove world obj targets
 
 
 makeNonRangedMove :: World -> Object -> Object
-makeNonRangedMove world obj | not $ isObject obj = obj
+makeNonRangedMove world obj | not $ isEnemy obj = obj
                             | not $ isAllowedMove obj = obj
                             | otherwise = 
-                let MoveStrategy moves canMove = objectMoveStrategy obj
+                let MoveStrategy moves canMove = objMoveStrategy obj
                 in objSetMoveStrategy obj $ MoveStrategy (movements ++ moves) canMove
     where   movements = makeSearch world obj heroPos
             heroPos = heroPosition world
 
 makeMove :: World -> Object -> Object
-makeMove world obj | not $ isObject obj = obj
+makeMove world obj | not $ isEnemy obj = obj
                    | shouldFlee obj = makeFleeingMove world obj
                    | shouldMakeRangedMove obj = makeRangedMove world obj
                    | otherwise = makeNonRangedMove world obj
 
 shouldFlee :: Object -> Bool
-shouldFlee o = objectHp o == 1
+shouldFlee o = objHp o == 1 
 
 shouldMakeRangedMove :: Object -> Bool
 shouldMakeRangedMove o = weaponRange weapon > 3
     where   weapon = weapons !! idx
-            weapons = objectWeapons o
-            idx = fromInteger $ objectActiveWeapon o
+            weapons = objWeapons o
+            idx = fromInteger $ objActiveWeapon o

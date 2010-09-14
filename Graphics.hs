@@ -88,6 +88,8 @@ titleGraphicId = 38
 titleArrowGraphicId = 39
 highscoreGraphicId = 40
 fontGraphicId = 41
+foe5GraphicId = 42
+coll16RectGraphicId = 43
 
 graphicTextureMap :: [(Integer, String)]
 graphicTextureMap = [ (crossGraphicId,      "images/cross.png")
@@ -131,6 +133,8 @@ graphicTextureMap = [ (crossGraphicId,      "images/cross.png")
                     , (titleArrowGraphicId, "images/title-arrow.png")
                     , (highscoreGraphicId,  "images/highscore.png")
                     , (fontGraphicId,       "images/fonts.png")
+                    , (foe5GraphicId,       "images/worm-blue.png")
+                    , (coll16RectGraphicId, "images/collission-rect-16.png")
                     ]
 
 

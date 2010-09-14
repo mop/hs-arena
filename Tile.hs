@@ -7,6 +7,7 @@ import Types
 import qualified Graphics.UI.SDL as SDL
 import Data.List (sortBy)
 import Control.Monad.Reader
+import Data.List (maximum, minimum)
 
 
 vectorToDirection :: Vector -> Direction
@@ -141,9 +142,17 @@ sortByZ = sortBy (\a b -> compare (zOrder a) (zOrder b))
 class (Show a) => Moveable_ a where
     move :: a -> Double -> a
     boundingBox :: a -> BBox
+    boundingBox = makeBoundingBox . boundingBoxes
     boundingBoxes :: a -> [BBox]
     boundingBoxes m = [boundingBox m]
     direction :: a -> Vector
+
+makeBoundingBox :: [BBox] -> BBox
+makeBoundingBox boxes = BBox left top (bboxZ $ head boxes) (bottom - top) (right - left)
+        where   left = minimum $ (map bboxX) boxes
+                top  = minimum $ (map bboxY) boxes
+                right  = maximum $ (map (\x -> bboxX x + bboxW x)) boxes
+                bottom = maximum $ (map (\x -> bboxY x + bboxH x)) boxes
 
 instance Moveable_ Tile where
     move t = const t
@@ -175,4 +184,5 @@ instance Show Moveable where
 instance Moveable_ Moveable where
     move (Moveable m) diff = Moveable $ move m diff
     boundingBox (Moveable m) = boundingBox m
+    boundingBoxes (Moveable m) = boundingBoxes m
     direction (Moveable m) = direction m

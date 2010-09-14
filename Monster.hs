@@ -18,6 +18,7 @@ import Collission
 import Object
 import Tile
 
+
 spawnPoint :: (Integer, Integer)
 spawnPoint = (7, 3)
 
@@ -69,26 +70,44 @@ skelettonFoe = Object 2 3 fSprite [weaponSword'] 0 0 charAnimator defaultMoveStr
             position = BBox spawnX spawnY 1.0 16.0 16.0
             weaponSword' = Weapon 2 wSprite 0 10 swordId 600 0 (-1) []
 
+{- Our boss is a worm. he has 2 hps and drains 2 hps -}
 bossFoe :: Object
-bossFoe = undefined
+bossFoe = WormBoss 2 3 wormSprites [weaponSword'] 0 0 charAnimator
+            defaultMoveStrategy []
+    where   wormSprites = [headSprite, pointSprite, middleSprite1, middleSprite2, tailSprite]
+            weaponSword' = Weapon 2 wSprite 0 10 swordId 600 0 (-1) []
+            headSprite = Sprite 4 foe5GraphicId headPos defaultVector 
+                                defaultVector 0.0 wormCharOffset wormHeadAnimator
+            headPos = BBox spawnX spawnY 1.0 16.0 16.0
+            pointSprite = Sprite 5 foe5GraphicId headPos defaultVector
+                                 defaultVector 0.0 wormCharOffset
+                                 wormPointAnimator
+            middleSprite1 = Sprite 6 foe5GraphicId headPos defaultVector
+                                 defaultVector 0.0 wormCharOffset
+                                 wormMiddleAnimator
+            middleSprite2 = Sprite 7 foe5GraphicId headPos defaultVector
+                                 defaultVector 0.0 wormCharOffset
+                                 wormMiddleAnimator
+            tailSprite = Sprite 8 foe5GraphicId headPos defaultVector
+                                 defaultVector 0.0 wormCharOffset
+                                 wormTailAnimator
 
 typeToMonster :: Integer -> Object
 typeToMonster 0 = yellowFoe
 typeToMonster 1 = greenFoe
 typeToMonster 2 = rangedFoe
 typeToMonster 3 = skelettonFoe
-typeToMonster 4 = skelettonFoe -- TODO: IMPLEMENT BOSS!!!
+typeToMonster 4 = bossFoe 
 
 monstersForLevel :: Integer -> [Object]
 monstersForLevel lvl = map genMonsters [2 .. (numMonsters + 1)]
     where   numMonsters = (round `div` 2) + 1
             hpPlus = ((round + 1) `div` 2)
-            monster' = monster { objectHp = objectHp monster + hpPlus }
+            monster' = objSetHp monster (objHp monster + hpPlus)
             monster = typeToMonster monsterType
             round = lvl `div` 5
             monsterType = lvl `mod` 5
-            genMonsters i = monster' { objectSprite = (objectSprite monster') {
-                                        spriteId = i }}
+            genMonsters i = objSetId monster' i
 
 tryPlaceMonster :: World -> World
 tryPlaceMonster world | null pending = world
@@ -98,17 +117,13 @@ tryPlaceMonster world | null pending = world
             collidesWithSpawnBox = (isCollission spawnBox) .  boundingBox
             spawnBox = BBox (x * 16.0) (y * 16.0) 1.0
                             16.0 16.0
+            spawnVec = Vector (x * 16.0) (y * 16.0) 1.0
             objects = worldObjects world
             pending = worldPendingMonster world
             world' = world { worldPendingMonster = tail pending
                            , worldObjects = placedMonster : objects 
                            }
-            placedMonster = (head pending) { objectSprite = sprite' }
-            sprite' = sprite { spritePosition = (spritePosition sprite) { 
-                               bboxX = (x * 16.0)
-                             , bboxY = (y * 16.0)
-                             }}
-            sprite = head $ objToSprites $ (head pending)
+            placedMonster = objSetPosition (head pending) spawnVec
             x = fromInteger $ fst spawnPoint
             y = fromInteger $ snd spawnPoint
 
@@ -117,7 +132,7 @@ tryAdvanceLevel :: World -> World
 tryAdvanceLevel world | not areMonsterPending && not areMonsterOnField = world'
                       | otherwise = world
     where   areMonsterPending = not $ null $ worldPendingMonster world
-            areMonsterOnField = not $ null $ filter isObject $ worldObjects world
+            areMonsterOnField = not $ null $ filter isEnemy $ worldObjects world
             world' = world { worldLevel = level
                            , worldPendingMonster = monstersForLevel level
                            }

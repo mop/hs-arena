@@ -7,6 +7,7 @@ import qualified Graphics.UI.SDL.Mixer as SDLm
 import Control.Monad.Reader
 import qualified Data.Map as M
 
+
 data PlotData = PlotData {
     plotBackground :: SDL.Surface
   , plotTexture    :: SDL.Surface
@@ -161,7 +162,11 @@ data Object = Object {
     , wormWeaponLastShoot :: !Integer
     , wormDefaultAnimator :: !Animator
     , wormMoveStrategy    :: !MoveStrategy
+    , wormWaypoints       :: !WormWaypoints
   } deriving (Show, Eq)
+
+-- a waypoint is a position direction tuple
+type WormWaypoints = [(Vector, Vector)]
 
 data Weapon = Weapon {
     weaponStrength    :: !Integer

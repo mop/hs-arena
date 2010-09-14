@@ -117,12 +117,12 @@ genRupeeItem o = Item sprite 300 $ ItemRupee rupees
             offset  = minimumBy cmpFirst offsets
             offsets = map (\(s, o) -> ((abs $ s - score), o, s)) rupeeOffsets 
             cmpFirst = (\(a, _, _) (b, _, _) -> compare a b)
-            score = max (objectVelocity o) vel + strength
+            score = max (objToVelocity o) vel + strength
             strength = weaponStrength weapon
             vel = weaponVelocity weapon
             weapon = weapons !! idx
-            idx = fromIntegral $ objectActiveWeapon o
-            weapons = objectWeapons o
+            idx = fromIntegral $ objActiveWeapon o
+            weapons = objWeapons o
                 
 render :: World -> IO ()
 render world = forM graphics drawGraphic >> return ()
@@ -130,7 +130,7 @@ render world = forM graphics drawGraphic >> return ()
             tiles = map tileLayer $ worldTileLayer world
             sprites = (sprite $ objectSprite $ worldHero world) : 
                       (map sprite (concatMap objToSprites $ drawObjects))
-            objects = filter isObject $ worldObjects world
+            objects = filter isEnemy $ worldObjects world
             projectiles = filter isProjectile $ worldObjects world
             items = filter isItem $ worldObjects world
             startedProjectiles = filter projectileStarted projectiles
@@ -142,9 +142,9 @@ render world = forM graphics drawGraphic >> return ()
             drawGraphic s = runReaderT (draw s) (plotData s)
 
 heroActiveWeapon :: World -> Weapon
-heroActiveWeapon world = weapons !! (fromInteger $ objectActiveWeapon hero)
+heroActiveWeapon world = weapons !! (fromInteger $ objActiveWeapon hero)
     where hero = worldHero world
-          weapons = objectWeapons hero
+          weapons = objWeapons hero
                 
 renderAmmo :: World -> IO ()
 renderAmmo world | weaponAmmo activeWeapon < 0 = return ()
@@ -159,7 +159,7 @@ renderAmmo world | weaponAmmo activeWeapon < 0 = return ()
 
 renderHp :: World -> IO ()
 renderHp world = sequence_ . reverse $ fst heartActions
-    where   hp = objectHp $ worldHero world
+    where   hp = objHp $ worldHero world
             smallHeartRect p = Just $ SDL.Rect (9 * p) 0 9 9
             bigHeartRect p = Just $ SDL.Rect (11 * p) 0 11 10
             bgRect pos = Just $ SDL.Rect (20 + pos * 8) 10 9 9
@@ -371,10 +371,10 @@ resetAi world ticks = world { worldObjects = objects
                             }
     where   objects = map deleteObjectAiMovements $ worldObjects world
             deleteObjectAiMovements obj 
-                | not $ isObject obj = obj
-                | otherwise = let (MoveStrategy moves flag) = objectMoveStrategy obj
+                | not $ isEnemy obj = obj
+                | otherwise = let (MoveStrategy moves flag) = objMoveStrategy obj
                                   moves' = filter (not . isAiMove) moves
-                              in obj { objectMoveStrategy = MoveStrategy moves' flag }
+                              in objSetMoveStrategy obj $ MoveStrategy moves' flag 
 
 deadAnimationSprite :: Sprite
 deadAnimationSprite = 
@@ -430,8 +430,7 @@ doResetAi world ticks = world'
 moveObjects :: World -> Integer -> World
 moveObjects world ticks = world'
     where   world' = world { worldObjects = objects'
-                           , worldHero = hero'
-                           }
+                           , worldHero = hero' }
             objects' = tail $ eventHandledObjects
             hero' = head $ eventHandledObjects
             eventHandledObjects = map (uncurry handleObjectEvents) objectList
@@ -449,7 +448,7 @@ handleCollissionsForObjects world ticks = world'
             objects' = tail $ collissionHandledObjects
             hero' = head $ collissionHandledObjects
             collissionHandledObjects = map (\(s, ss) -> objHandleCollission s 
-                (moveableTiles ++ (map Moveable $ filter isObject ss))) objectList
+                (moveableTiles ++ (map Moveable $ filter isEnemy ss))) objectList
             objectList = generateObjectList $ hero : objects
             objects = worldObjects world
             hero = worldHero world
@@ -465,7 +464,7 @@ controlObjectsWithAi world = world'
 generateItemsFromDeadObjects :: World -> IO World
 generateItemsFromDeadObjects world = items' >>= \i -> 
                                 (return $ world { worldObjects = objects ++ i })
-    where   deadObjs = filter (\x -> (isDead x) && (isObject x)) objects
+    where   deadObjs = filter (\x -> (isDead x) && (isEnemy x)) objects
             objects = worldObjects world
             items = mapM (\o -> fmap ((numberToItem o) . (`mod` 100)) randomIO)
                          deadObjs
@@ -477,7 +476,7 @@ generateItemsFromDeadObjects world = items' >>= \i ->
 addDeadAnimations :: World -> World
 addDeadAnimations world = world { worldAnimations = anis ++ deadAnis }
     where   deadAnis = map toDeadAnimation deadObjects
-            deadObjects = filter (\x -> (isDead x) && (isObject x)) objects
+            deadObjects = filter (\x -> (isDead x) && (isEnemy x)) objects
             anis = worldAnimations world
             objects = worldObjects world
 
@@ -509,7 +508,7 @@ handleSounds world = do
             (playSound SoundEnemyHit $ worldSounds world)
         when (not . null $ deadObjects)
             (playSound SoundEnemyKill $ worldSounds world)
-        when (objectHp hero <= 0 && deadAniStarted hero)
+        when (objHp hero <= 0 && deadAniStarted hero)
             (playSound SoundGameOver $ worldSounds world)
     where   items = collidedItems world
             projectiles = filter isProjectile $ worldObjects world
@@ -519,8 +518,8 @@ handleSounds world = do
                f (objId (fromJust (projectileShooter p)))
             projs' = map boundingBox enemyProjs
             myProjs' = map boundingBox myProjs
-            enemies = filter isObject objects
-            deadObjects = filter (\x -> (isDead x) && (isObject x)) objects
+            enemies = filter isEnemy objects
+            deadObjects = filter (\x -> (isDead x) && (isEnemy x)) objects
             objects = worldObjects world
             hero = worldHero world
 
@@ -532,11 +531,24 @@ collidedItems world = filter ((isCollission $ boundingBox hero) . snd)
             objects = worldObjects world
             hero = worldHero world
 
+toSDLRect :: BBox -> SDL.Rect
+toSDLRect (BBox x y z w h) = SDL.Rect (floor x) (floor y) (floor w) (floor h)
+renderBBoxWorm :: World -> IO ()
+renderBBoxWorm world | null $ filter isWorm $ objs = return ()
+                     | otherwise = do
+    let boxes = map (Just . toSDLRect) $ concatMap (boundingBoxes) $ filter isWorm objs
+    let sf = fromJust $ M.lookup coll16RectGraphicId $ worldTextures world
+    let heroBox = Just $ toSDLRect $ boundingBox $ worldHero world
+    mapM (SDL.blitSurface sf Nothing screen) (heroBox : boxes)
+    return ()
+    where   objs = worldObjects world
+            screen = worldScreen world
 eventHandler :: World -> IO ()
 eventHandler world = do
     render world
     renderControls world
-    mapM (renderPath world) $ filter isObject $ worldObjects world
+    renderBBoxWorm world
+    mapM (renderPath world) $ filter isEnemy $ worldObjects world
     SDL.flip $ worldScreen world
     SDL.delay 10
 
@@ -584,7 +596,7 @@ showGameOver' world = do
             screen = worldScreen world
 
 deadAniFinished :: Object -> Bool
-deadAniFinished obj | objectHp obj > 0 = False
+deadAniFinished obj | objHp obj > 0 = False
                     | otherwise = hasAniFinished && isDeadSprite
     where   hasAniFinished = (animatorCount ani + 1) == animatorMaxCount ani
             ani = spriteAnimator $ head $ objToSprites obj 
@@ -600,10 +612,10 @@ deadAniStarted obj = hasAniStarted && isDeadSprite
 handleGameOver :: World -> World
 handleGameOver world | isHeroDead && not aniShown = world'
                      | otherwise = world
-    where   isHeroDead = objectHp hero <= 0
+    where   isHeroDead = objHp hero <= 0
             hero = worldHero world
             aniShown = (head $ moveStrategyMoves $ 
-                       objectMoveStrategy hero) /= DefaultMove
+                       objMoveStrategy hero) /= DefaultMove
             world' = world { worldHero = hero' 
                            , worldObjects = []}
             hero' = heroSetAni world (heroDead world)
@@ -628,8 +640,8 @@ handlePlayAttackSound world = doPlaySword world (hasAniStarted && isSwordGid)
             startFrm = start `mod` (animatorMaxFrameCount animator) + 1
             start = weaponFrameStart weapon
             weapon = weapons !! idx
-            weapons = objectWeapons hero
-            idx = fromInteger $ objectActiveWeapon hero
+            weapons = objWeapons hero
+            idx = fromInteger $ objActiveWeapon hero
             isBowGid   = any (== gid) bowGraphics
             isSwordGid = any (== gid) swordGraphics
             bowGraphics = [ heroBowUpId
@@ -658,7 +670,7 @@ renderPath world obj = mapM_ drawGraphic sprites
     where   sprites = map (crossSprite . moveToVec) paths
             paths = filter isAiMove moves
             moves = moveStrategyMoves strategy
-            strategy = objectMoveStrategy obj
+            strategy = objMoveStrategy obj
             moveToVec (MoveTo pos _ _) = pos
             theTexture s = M.lookup (texture s) (worldTextures world)
             screen = worldScreen world
@@ -668,7 +680,7 @@ renderPath world obj = mapM_ drawGraphic sprites
 heroCanMove :: World -> Bool
 heroCanMove world = head moves == DefaultMove
     where   hero = worldHero world
-            moves = moveStrategyMoves . objectMoveStrategy $ hero
+            moves = moveStrategyMoves . objMoveStrategy $ hero
 withHeroDirection :: World -> (Vector -> Vector) -> World
 withHeroDirection world fun | heroCanMove world = world { worldHero = hero' }
                             | otherwise = world
@@ -744,7 +756,7 @@ heroSetAni world logger = hero'
     where   moves = fst $ unMoveLogger logger
             hero = worldHero world
             hero' = hero { objectMoveStrategy = strategy' }
-            strategy = objectMoveStrategy hero
+            strategy = objMoveStrategy hero
             strategy' = strategy { moveStrategyMoves = moves ++ 
                                     (moveStrategyMoves strategy)
                                  }
@@ -774,8 +786,8 @@ shootProjectile world | canShoot && heroCanMove world
             hSprite = objectSprite hero
             activeWeapon = weapons !! wIndex
             activeWeapon' = weaponDecAmmo activeWeapon
-            wIndex = fromInteger $ objectActiveWeapon hero
-            weapons = objectWeapons hero
+            wIndex = fromInteger $ objActiveWeapon hero
+            weapons = objWeapons hero
             weapons' = let (_ : suffix) = drop wIndex weapons
                            prefix = take wIndex weapons
                        in prefix ++ (activeWeapon' : suffix)
@@ -788,7 +800,7 @@ shootProjectile world | canShoot && heroCanMove world
             direction' = direction `vecMul` (weaponVelocity activeWeapon)
             canShoot = weaponCooldown activeWeapon < diffTicks &&
                        weaponHasEnoughAmmo activeWeapon
-            diffTicks = worldTicks world - objectWeaponLastShoot hero 
+            diffTicks = worldTicks world - objWeaponLastShoot hero 
 
 
 withWorldInput :: World -> (Vector -> Vector) -> World
@@ -799,18 +811,18 @@ withActiveWeapon :: World -> (Integer -> Integer) -> World
 withActiveWeapon w fun = w { worldHero = hero' }
     where   hero' = (worldHero w) { objectActiveWeapon = idx' }
             idx' = fun idx
-            idx = objectActiveWeapon $ worldHero w
+            idx = objActiveWeapon $ worldHero w
 
 circleNext :: World -> Integer -> Integer
 circleNext world idx = (idx + 1) `mod` l
-    where l = fromIntegral $ length $ objectWeapons $ worldHero world
+    where l = fromIntegral $ length $ objWeapons $ worldHero world
 
 circlePrev :: World -> Integer -> Integer
 circlePrev world idx 
         | idx' >= 0 = idx'
         | otherwise = l - 1
     where   idx' = idx - 1
-            l = fromIntegral $ length $ objectWeapons $ worldHero world
+            l = fromIntegral $ length $ objWeapons $ worldHero world
             
 
 handleEvent :: World -> SDL.Event -> IO ()
