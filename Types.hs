@@ -21,6 +21,7 @@ data Vector = Vector {
   , vecZ :: Double
 } deriving (Show, Eq)
 
+defaultVector :: Vector
 defaultVector = Vector 0.0 0.0 0.0
 
 data BBox = BBox {
@@ -31,6 +32,7 @@ data BBox = BBox {
   , bboxH :: Double
 } deriving (Show, Eq)
 
+defaultBBox :: BBox
 defaultBBox = BBox 0.0 0.0 0.0 0.0 0.0
 
 data Tile = Tile {
@@ -45,9 +47,6 @@ data TileLayer = TileLayer {
   , tileLayerGraphic :: Integer
   , tileLayerZ :: Double
 } deriving (Show, Eq)
-
-defaultTile = Tile 0 0 defaultBBox
-defaultTile' = Tile 0 0 defaultBBox { bboxZ = 1.0 }
 
 data Sprite = Sprite {
     spriteId            :: !Integer
@@ -75,6 +74,7 @@ data Animator = CustomAnimator {
   , animatorFrameCount :: Integer  -- counts the actual frame
 } 
 
+defaultAnimator :: Animator
 defaultAnimator = CustomAnimator (\_ -> SDL.Rect 0 0 0 0)
                                  (\_ -> defaultAnimator)
                                  1 100 0 0
@@ -84,13 +84,13 @@ data Direction = DirUp | DirDown | DirLeft | DirRight
     deriving (Show, Eq)
 
 instance Show Animator where
-    show anim = "Animator"
+    show _ = "Animator"
 
 instance Eq Animator where
-    a == b = True
+    _ == _ = True
 
+defaultSprite :: Sprite
 defaultSprite  = Sprite 0 0 defaultBBox defaultVector defaultVector 0.0 defaultVector defaultAnimator
-defaultSprite' = defaultSprite { spritePosition = (defaultBBox { bboxZ = 1.0 }) }
 
 class Drawable_ a where
     draw    :: a -> PlotDataMIO ()
@@ -121,10 +121,10 @@ data Move = DefaultMove
     deriving (Show, Eq)
 
 instance Show (Object -> Object) where
-    show f = "fun :: (Object -> Object)"
+    show _ = "fun :: (Object -> Object)"
 
 instance Eq (Object -> Object) where
-    f1 == f2 = True
+    _ == _ = True
 
 newtype MoveLogger a = MoveLogger { unMoveLogger :: ([Move], a) }
 
@@ -193,6 +193,7 @@ data Weapon = Weapon {
   , weaponHeroSprites :: ![(Direction, Integer)]
   } deriving (Show, Eq)
 
+defaultWeapon :: Weapon
 defaultWeapon = Weapon 0 defaultSprite 0 0 (-1) 0 0 (-1) []
 
 data Sounds = SoundSword 
@@ -236,6 +237,7 @@ data Config = Config {
   , configShowVersion       :: !Bool
 }
 
+defaultConfig :: Config
 defaultConfig = Config False False False
 
 type HighscoreEntry = (String, Integer)

@@ -48,9 +48,9 @@ markCollission = markCollissionWith True
 unmarkCollission :: Array Int Bool  -> Integer -> Integer -> (Int, Int) -> Array Int Bool
 unmarkCollission = markCollissionWith False
 markCollissionWith :: Bool -> Array Int Bool -> Integer -> Integer -> (Int, Int) -> Array Int Bool
-markCollissionWith flag cols w _ (x, y) | index >= 0 = cols // [(index, flag)]
+markCollissionWith flag cols w _ (x, y) | idx >= 0 = cols // [(idx, flag)]
                                         | otherwise = cols
-    where   index = fromInteger $ w * fromIntegral y + fromIntegral x
+    where   idx = fromInteger $ w * fromIntegral y + fromIntegral x
 
 moveableCoords :: Moveable_ a => a -> [(Int, Int)]
 moveableCoords m = nub [ (x, y), (x'', y), (x, y''), (x'', y'') ]

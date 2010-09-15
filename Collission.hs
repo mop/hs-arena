@@ -1,20 +1,17 @@
 module Collission 
+    ( isCollission
+    , collissionResponse
+    , collissionResponse'
+    )
 where
 
-import Types
+import Types (BBox (..), Vector (..), defaultVector)
 import Data.List (minimumBy)
 
-import System.IO.Unsafe (unsafePerformIO)
-
-data Coords = Coords {
-    coordLeft   :: Double
-  , coordRight  :: Double
-  , coordTop    :: Double
-  , coordBottom :: Double
-}
+data Coords = Coords Double Double Double Double
 
 boxToCoord :: BBox -> Coords
-boxToCoord (BBox x y z w h) = Coords x (x + w) y (y + h)
+boxToCoord (BBox x y _ w h) = Coords x (x + w) y (y + h)
 
 isCollission :: BBox -> BBox -> Bool
 isCollission box1 box2 
@@ -26,8 +23,10 @@ isCollission box1 box2
                           top1 >= bottom2 ||
                           bottom1 <= top2)
 
+trimTo :: Double -> Double -> Double
 trimTo a b | a > 0 = min (abs a) (abs b)
            | otherwise = 0
+trimToN :: Double -> Double -> Double
 trimToN a b | a < 0 = min (abs a) (abs b)
             | otherwise = 0
 collissionResponse :: Vector -> BBox -> BBox -> BBox

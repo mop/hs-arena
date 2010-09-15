@@ -1,12 +1,10 @@
 module Animation
 where
 
-import Types
-import Tile
+import Types (Sprite(..), Animator(..), Direction(..), Vector(..))
+import Tile (zeroVec, vectorToDirection)
 
 import qualified Graphics.UI.SDL as SDL
-
-import System.IO.Unsafe (unsafePerformIO)
 
 defaultCharOffset :: Vector
 defaultCharOffset = Vector 4.0 16.0 0.0
@@ -17,19 +15,36 @@ wormCharOffset = Vector 8.0 8.0 0.0
 defaultBattleOffset :: Vector
 defaultBattleOffset = Vector 40.0 48.0 0.0
 
+charAnimator :: Animator
 charAnimator = CustomAnimator charAnimation charMoveNext 4 10 0 0
+
+wormHeadAnimator :: Animator
 wormHeadAnimator = CustomAnimator (wormOffsetAnimation 0 0) charMoveNext 4 10 0 0
+wormPointAnimator :: Animator
 wormPointAnimator = CustomAnimator (wormOffsetAnimation 0 128) charMoveNext 4 10 0 0
+wormMiddleAnimator :: Animator
 wormMiddleAnimator = CustomAnimator (wormOffsetAnimation 96 0) charMoveNext 4 10 0 0
+wormTailAnimator :: Animator
 wormTailAnimator = CustomAnimator (wormOffsetAnimation 96 128) charMoveNext 4 10 0 0
+
+wormWoundedHeadAnimator :: Animator
 wormWoundedHeadAnimator = CustomAnimator (wormOffsetAnimation 0 256) charMoveNext 4 10 0 0
+wormWoundedPointAnimator :: Animator
 wormWoundedPointAnimator = CustomAnimator (wormOffsetAnimation 0 384) charMoveNext 4 10 0 0
+wormWoundedMiddleAnimator :: Animator
 wormWoundedMiddleAnimator = CustomAnimator (wormOffsetAnimation 96 256) charMoveNext 4 10 0 0
+wormWoundedTailAnimator :: Animator
 wormWoundedTailAnimator = CustomAnimator (wormOffsetAnimation 96 384) charMoveNext 4 10 0 0
+
+wormAngryHeadAnimator :: Animator
 wormAngryHeadAnimator = CustomAnimator (wormOffsetAnimation 0 512) charMoveNext 4 10 0 0
+wormAngryPointAnimator :: Animator
 wormAngryPointAnimator = CustomAnimator (wormOffsetAnimation 0 640) charMoveNext 4 10 0 0
+wormAngryMiddleAnimator :: Animator
 wormAngryMiddleAnimator = CustomAnimator (wormOffsetAnimation 96 512) charMoveNext 4 10 0 0
+wormAngryTailAnimator :: Animator
 wormAngryTailAnimator = CustomAnimator (wormOffsetAnimation 96 640) charMoveNext 4 10 0 0
+
 fixedCharAnimator :: Direction -> Animator
 fixedCharAnimator dir = CustomAnimator (fixedCharAnimation dir) charMoveNext 4 10 0 0
 fixedWoundedCharAnimator :: Direction -> Animator
@@ -38,8 +53,13 @@ fixedWoundedCharAnimator dir = CustomAnimator (fixedWoundedCharAnimation dir)
 fixedWoundedHeroAnimator :: Direction -> Animator
 fixedWoundedHeroAnimator dir = CustomAnimator (fixedWoundedHeroAnimation dir)
                                                frameMoveNextStop 5 1 0 0
+frameAnimator :: Int -> Int -> Integer -> Integer -> Integer -> Integer 
+              -> Animator
 frameAnimator width height = CustomAnimator (frameAnimation width height) frameMoveNext 
+frameStopAnimator :: Int -> Int -> Integer -> Integer -> Integer -> Integer 
+                  -> Animator
 frameStopAnimator width height = CustomAnimator (frameAnimation width height) frameMoveNextStop
+heroAnimator :: Animator
 heroAnimator = CustomAnimator heroAnimation charMoveNext 8 5 0 0
 
 itemAnimator :: Animator
@@ -81,7 +101,6 @@ fixedWoundedOffsetCharAnimation offset dir sprite = SDL.Rect xTexCoord yTexCoord
     where   yTexCoord = directionToYTex dir
             xTexCoord = offset + (24 * fromInteger count)
             animator  = spriteAnimator sprite
-            direction = spriteDirection sprite
             count | animatorCount animator < 3 = animatorCount animator
                   | otherwise = 4 - animatorCount animator
 
@@ -141,7 +160,6 @@ frameMoveNext spr = (spriteAnimator spr) { animatorFrameCount = frameCount'
     where   frameCount' = (frameCount + 1) `mod` frameLimit
             count' | frameCount == (frameLimit - 1) = (count + 1) `mod` maxCount
                    | otherwise = count
-            dir = spriteDirection spr
             count = animatorCount $ spriteAnimator spr 
             frameCount = animatorFrameCount $ spriteAnimator spr 
             maxCount = animatorMaxCount $ spriteAnimator spr
@@ -154,7 +172,6 @@ frameMoveNextStop spr = (spriteAnimator spr) { animatorFrameCount = frameCount'
             count' |   frameCount == (frameLimit - 1) 
                     && (count + 1) < maxCount = (count + 1) `mod` maxCount
                    | otherwise = count
-            dir = spriteDirection spr
             count = animatorCount $ spriteAnimator spr 
             frameCount = animatorFrameCount $ spriteAnimator spr 
             maxCount = animatorMaxCount $ spriteAnimator spr
@@ -167,12 +184,16 @@ directionToYTex DirRight = 32
 directionToYTex DirDown = 64
 directionToYTex DirLeft = 96
 
+aniCountToXTex :: Integer -> Int
 aniCountToXTex 0 = 24
 aniCountToXTex 1 = 48
 aniCountToXTex 2 = 24
 aniCountToXTex 3 = 0
+aniCountToXTex _ = 0
 
+aniCountToXTex' :: Integer -> Int
 aniCountToXTex' 0 = 32
 aniCountToXTex' 1 = 64
 aniCountToXTex' 2 = 32
 aniCountToXTex' 3 = 0
+aniCountToXTex' _ = 0

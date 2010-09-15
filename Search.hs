@@ -11,8 +11,6 @@ import qualified Data.Map as M
 import Maybe
 import Array
 
-import System.IO.Unsafe (unsafePerformIO)
-
 data Map = Map {
     mapWidth       :: Integer
   , mapHeight      :: Integer
@@ -22,7 +20,7 @@ data Map = Map {
 type Position = (Integer, Integer)
 
 mapTileAt :: Map -> Position -> Bool
-mapTileAt (Map w h xs) (x, y) = xs ! (fromInteger $ (w * y) + x)
+mapTileAt (Map w _ xs) (x, y) = xs ! (fromInteger $ (w * y) + x)
 
 distBetween :: Position -> Position -> Double
 distBetween (fromX, fromY) (toX, toY) = sqrt $ diffX * diffX + diffY * diffY
@@ -30,7 +28,7 @@ distBetween (fromX, fromY) (toX, toY) = sqrt $ diffX * diffX + diffY * diffY
             diffY = fromInteger $ toY - fromY
 
 neighbors :: Map -> Position -> [Position]
-neighbors m@(Map w h xs) p@(x, y) = filter (not . (p ==)) positions'''
+neighbors m@(Map w h _) p@(x, y) = filter (not . (p ==)) positions'''
     where   offsets :: [(Integer, Integer)]
             offsets = [(a, b) | a <- [(-1)..1], b <- [(-1)..1]]
             offsets' :: [(Integer, Integer)]
@@ -46,10 +44,10 @@ neighbors m@(Map w h xs) p@(x, y) = filter (not . (p ==)) positions'''
             horizontalMovement pos = deltaFromStart pos < 2
             validMovement (a, b) =  not (mapTileAt m (x, b)) 
                                  || not (mapTileAt m (a, y))
-            isOutOfRange (x, y) = x < 0 || x >= w || y < 0 || y >= h
+            isOutOfRange (xC, yC) = xC < 0 || xC >= w || yC < 0 || yC >= h
 
 reconstructPath :: M.Map Position Position -> Maybe Position -> [Position]
-reconstructPath m Nothing = []
+reconstructPath _ Nothing = []
 reconstructPath m (Just pos) = reconstructPath m (M.lookup pos m) ++ [pos]
 
 search :: Map -> Position -> Position -> Maybe [Position]
@@ -65,43 +63,43 @@ search m start goal = let result = doSearch openSet closedSet M.empty g
             doSearch :: PQ.PSQ Position Double -> S.Set Position -> 
                         M.Map Position Position -> M.Map Position Double ->
                         [Position]
-            doSearch openSet closedSet comeFrom g
-                | PQ.null openSet = [(-1, -1)]
-                | otherwise = let Just (b, openSet') = PQ.minView openSet
+            doSearch openSetIn closedSetIn comeFrom gIn
+                | PQ.null openSetIn = [(-1, -1)]
+                | otherwise = let Just (b, openSet') = PQ.minView openSetIn
                                   x = PQ.key b
-                                  p = PQ.prio b
-                                  closedSet' = S.insert x closedSet
+                                  closedSet' = S.insert x closedSetIn
                               in if x == goal then reconstructPath comeFrom
                                                     (M.lookup goal comeFrom)
                                               else expandNode x openSet'
                                                                 closedSet'
-                                                                comeFrom g
+                                                                comeFrom gIn
             expandNode :: Position -> PQ.PSQ Position Double ->
                           S.Set Position -> M.Map Position Position 
                           -> M.Map Position Double -> [Position]
-            expandNode x openSet closedSet comeFrom g = 
+            expandNode x openSetIn closedSetIn comeFrom gIn = 
                     let     comeFrom' = foldr insertIntoMap comeFrom ns'''
-                            openSet' = foldr insertOpenSet openSet ns'''
-                            g' = foldr insertIntoG g nsG
-                    in doSearch openSet' closedSet comeFrom' g'
+                            openSet' = foldr insertOpenSet openSetIn ns'''
+                            g' = foldr insertIntoG gIn nsG
+                    in doSearch openSet' closedSetIn comeFrom' g'
                 where   gVal = fromJust $ M.lookup x g
                         ns = neighbors m x
                         ns' :: [Position]
-                        ns' = filter (not . (flip S.member closedSet)) ns
+                        ns' = filter (not . (flip S.member closedSetIn)) ns
                         ns'' :: [(Position, Double)]
                         ns'' = map (\n -> (n, gVal + distBetween n x + h n)) ns'
                         ns''' :: [(Position, Double)]
                         ns''' = filter (\(n, f) -> not $ 
-                                       pqContains openSet n
-                                    && snd (pqFind openSet n) < f) ns''
+                                       pqContains openSetIn n
+                                    && snd (pqFind openSetIn n) < f) ns''
                         nsG = map (\n -> (n, gVal + distBetween n x)) ns'
-                        insertIntoMap (neighbor, f) = M.insert neighbor x
-                        insertIntoG (neighbor, g) = M.insert neighbor g
+                        -- was: insertIntoMap (neighbor, f) = M.insert neighbor x
+                        insertIntoMap (neighbor, _) = M.insert neighbor x
+                        insertIntoG (neighbor, nG) = M.insert neighbor nG
                         insertOpenSet (n, f) pq 
                             | not $ pqContains pq n = PQ.insert n f pq
                             | otherwise = PQ.update (Just . (const f)) n pq
 
 pqContains :: PQ.PSQ Position Double -> Position -> Bool
-pqContains pq elem = isJust $ PQ.lookup elem pq
+pqContains pq x = isJust $ PQ.lookup x pq
 pqFind :: PQ.PSQ Position Double -> Position -> (Position, Double) 
-pqFind pq elem = (elem, fromJust $ PQ.lookup elem pq)
+pqFind pq x = (x, fromJust $ PQ.lookup x pq)

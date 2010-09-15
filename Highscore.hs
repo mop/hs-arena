@@ -6,8 +6,8 @@ module Highscore
     )
 where
 
-import Types
-import Tile
+import Types ( World(..), PlotData(..), HighscoreEntry
+             , Vector(..), Drawable_(..), PlotDataMIO)
 import Graphics
 
 import Data.List (sortBy)
@@ -52,7 +52,7 @@ highscoreMaxEntries = 8
 -- Tries to add the world score to the highscore
 addScoreToHighscore :: World -> (Integer, World)
 addScoreToHighscore world = (fromJust $ lookup "" highscore'', world')
-    where   highscore'' = map (\(i, (n, s)) -> (n, i)) $ zip [0..] highscore'
+    where   highscore'' = map (\(i, (n, _)) -> (n, i)) $ zip [0..] highscore'
             highscore' = reverse $ sortBy (\x y -> snd x `compare` snd y) $ 
                             ("", score) : highscore
             score = worldScore world
@@ -82,7 +82,7 @@ doHighscoreInput' world idx = do
             SDL.KeyDown (SDL.Keysym SDL.SDLK_LSHIFT _ _) -> 
                 doHighscoreInput' world idx
             SDL.KeyDown (SDL.Keysym _ _ c) -> addInput c
-            otherwise -> doHighscoreInput' world idx
+            _ -> doHighscoreInput' world idx
     where   name = fst $ highscore !! idx'
             highscore = worldHighscores world
             idx' = fromInteger idx
@@ -106,7 +106,7 @@ fillZero num str | toFill <= 0 = str
 
 renderHighscore :: World -> IO ()
 renderHighscore world = do
-        SDL.blitSurface highscoreSf Nothing screen Nothing
+        _ <- SDL.blitSurface highscoreSf Nothing screen Nothing
         mapM_ drawGraphic highscoreText
         SDL.flip screen
     where   screen = worldScreen world

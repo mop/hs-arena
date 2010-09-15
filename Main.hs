@@ -1,14 +1,12 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 import qualified Graphics.UI.SDL as SDL
-import qualified Graphics.UI.SDL.Image as SDLi
 import qualified Graphics.UI.SDL.Mixer as SDLm
 import qualified Data.Map as M
-import Data.List (foldl', minimumBy, groupBy)
+import Data.List (minimumBy, groupBy)
 import Control.Monad (forM, when)
 import Control.Monad.Reader (runReaderT)
 import Maybe (fromJust, isJust)
 import Random (randomIO)
-import System.IO.Unsafe (unsafePerformIO)
 import System.Console.GetOpt
 import System (getArgs, exitWith, ExitCode(..))
 
@@ -25,37 +23,35 @@ import Graphics
 import Monster
 import Highscore
 
-maxAmmo :: Integer
-maxAmmo = 30
-
 heroSwordAnimations :: [(Direction, Integer)]
 heroSwordAnimations = [ (DirUp, heroSwordUpId)
                       , (DirDown, heroSwordDownId)
                       , (DirLeft, heroSwordLeftId)
-                      , (DirRight, heroSwordRightId)
-                      ]
+                      , (DirRight, heroSwordRightId) ]
 
+weaponSword :: Weapon
 weaponSword = Weapon 1 wSprite 1 10 swordId 600 0 (-1) heroSwordAnimations
+wSprite :: Sprite
 wSprite = defaultSprite { spriteId = 100
                         , spriteGraphic = swordSpriteId
                         , spriteTextureOffset = defaultCharOffset
                         , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
-                        , spriteAnimator = charAnimator
-                        } 
+                        , spriteAnimator = charAnimator } 
+
 heroBowAnimations :: [(Direction, Integer)]
 heroBowAnimations = [ (DirUp, heroBowUpId)
                     , (DirDown, heroBowDownId)
                     , (DirLeft, heroBowLeftId)
-                    , (DirRight, heroBowRightId)
-                    ]
+                    , (DirRight, heroBowRightId) ]
 
+weaponArrow :: Weapon
 weaponArrow = Weapon 2 bSprite 100 5 bowSpriteId 800 (3 * 4) 30 heroBowAnimations
+bSprite :: Sprite
 bSprite = defaultSprite { spriteId = 101
                         , spriteGraphic = arrowSpriteId
                         , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
                         , spriteTextureOffset = defaultCharOffset
-                        , spriteAnimator = charAnimator
-                        }
+                        , spriteAnimator = charAnimator }
 
 genHero :: Object
 genHero = Object 12 10 hSprite [weaponSword, weaponArrow] 0 0 heroAnimator defaultMoveStrategy
@@ -71,31 +67,14 @@ heroBowAnimation = frameAnimator 96 96 6 3 0 0
 heroDeadAnimation :: Animator
 heroDeadAnimation = frameStopAnimator 96 96 8 5 0 0
 
-genFoe :: Object
-genFoe = Object 2 3 fSprite [weaponSword'] 0 0 charAnimator defaultMoveStrategy
-    where   fSprite = Sprite 2 foeGraphicId position defaultVector defaultVector 0.0 defaultCharOffset charAnimator
-            position = BBox 64.0 64.0 1.0 16.0 16.0
-            weaponSword' = weaponSword { weaponRange = 0 }
-
-genRangedFoe :: Object
-genRangedFoe = Object 2 3 fSprite [weaponStone] 0 0 charAnimator defaultMoveStrategy
-    where   fSprite = Sprite 3 foe2GraphicId position defaultVector defaultVector 0.0 defaultCharOffset charAnimator
-            position = BBox 80.0 80.0 1.0 16.0 16.0
-            weaponStone = Weapon 1 sSprite 100 3 rockIconSpriteId 800 (3 * 4) 30 []
-            sSprite = defaultSprite { spriteId = 102
-                                    , spriteGraphic = rockSpriteId
-                                    , spriteTextureOffset = defaultCharOffset
-                                    , spriteAnimator = charAnimator
-                                    }
-
 genHeartItem :: Object
-genHeartItem = Item sprite 300 $ ItemHeart 4
-    where   sprite   = Sprite 60 itemHeartId position defaultVector defaultVector 0.0 defaultVector itemAnimator
+genHeartItem = Item spr 300 $ ItemHeart 4
+    where   spr = Sprite 60 itemHeartId position defaultVector defaultVector 0.0 defaultVector itemAnimator
             position = BBox 200.0 80.0 1.0 16.0 16.0
 
 genArrowItem :: Object
-genArrowItem = Item sprite 300 $ ItemArrow 5
-    where   sprite   = Sprite 61 itemArrowId position defaultVector defaultVector 0.0 defaultVector itemAnimator
+genArrowItem = Item spr 300 $ ItemArrow 5
+    where   spr   = Sprite 61 itemArrowId position defaultVector defaultVector 0.0 defaultVector itemAnimator
             position = BBox 100.0 100.0 1.0 16.0 16.0
 
 rupeeOffsets :: [(Integer, Integer)]
@@ -108,23 +87,23 @@ rupeeOffsets = [ (1,   itemRupeeGreenId)
                ]
 
 genRupeeItem :: Object -> Object
-genRupeeItem o = Item sprite 300 $ ItemRupee rupees
+genRupeeItem obj = Item spr 300 $ ItemRupee rupees
     where   rupees = let (_, _, r) = offset
                      in r
-            sprite = Sprite 62 texId position defaultVector defaultVector 0.0
-                               defaultVector itemAnimator
+            spr = Sprite 62 texId position defaultVector defaultVector 0.0
+                         defaultVector itemAnimator
             position = BBox 0.0 0.0 1.0 16.0 16.0
             texId = let (_, x, _) = offset
                      in x
             offset  = minimumBy cmpFirst offsets
             offsets = map (\(s, o) -> ((abs $ s - score), o, s)) rupeeOffsets 
             cmpFirst = (\(a, _, _) (b, _, _) -> compare a b)
-            score = max (objToVelocity o) vel + strength
+            score = max (objToVelocity obj) vel + strength
             strength = weaponStrength weapon
             vel = weaponVelocity weapon
             weapon = weapons !! idx
-            idx = fromIntegral $ objActiveWeapon o
-            weapons = objWeapons o
+            idx = fromIntegral $ objActiveWeapon obj
+            weapons = objWeapons obj
                 
 render :: World -> IO ()
 render world = forM graphics drawGraphic >> return ()
@@ -155,8 +134,8 @@ renderAmmo world | weaponAmmo activeWeapon < 0 = return ()
             intSprite = IntegerSprite ammo pos digitsSpriteId
             ammo = weaponAmmo activeWeapon
             pos = Vector 156.0 220.0 0.0
-            plotData = PlotData screen (fromJust texture)
-            texture = M.lookup digitsSpriteId $ worldTextures world
+            plotData = PlotData screen (fromJust tex)
+            tex = M.lookup digitsSpriteId $ worldTextures world
             screen = worldScreen world
 
 renderHp :: World -> IO ()
@@ -181,13 +160,13 @@ renderScore :: World -> IO ()
 renderScore world = drawRupee 
                  >> runReaderT (draw intSprite) plotData 
                  >> return ()
-    where   intSprite = IntegerSprite score pos digitsSpriteId
+    where   intSprite = IntegerSprite score' pos digitsSpriteId
             score' | score > 9999 = 9999
                    | otherwise = score
             score = worldScore world
-            plotData = PlotData screen (fromJust texture)
+            plotData = PlotData screen (fromJust tex)
             pos = Vector 304.0 224.0 0.0
-            texture = M.lookup digitsSpriteId $ worldTextures world
+            tex = M.lookup digitsSpriteId $ worldTextures world
             screen = worldScreen world
             drawRupee = SDL.blitSurface rupeeSurface rupeeTexRect screen rupePos
             rupeeSurface = fromJust $ M.lookup rupeeIconId $ worldTextures world
@@ -202,13 +181,12 @@ renderControls world = renderHp world
                     >> SDL.blitSurface weaponSurface Nothing screen (Just weaponRect)
                     >> renderAmmo world
                     >> return ()
-    where   hero = worldHero world
-            activeWeapon = heroActiveWeapon world
+    where   activeWeapon = heroActiveWeapon world
             arrowLeftSurface = fromJust $ M.lookup arrowLeftId $ worldTextures world
             arrowRightSurface = fromJust $ M.lookup arrowRightId $ worldTextures world
             weaponSurface = fromJust $ M.lookup (weaponIcon activeWeapon)$ worldTextures world
             screen = worldScreen world
-            borderRect = SDL.Rect 200 210 120 20
+            -- borderRect = SDL.Rect 200 210 120 20
             arrowLeftRect = SDL.Rect 128 212 16 16
             weaponRect = SDL.Rect 144 212 16 16
             arrowRightRect = SDL.Rect 160 212 16 16
@@ -234,7 +212,6 @@ loadMap filename world = do
                                             (M.fromList graphics)
                   })
 
-
 preloadMapLayers :: World -> IO World
 preloadMapLayers world = do
             layers <- mapM createSurfaceForTiles $ zip [6666..] groupedTiles
@@ -246,17 +223,20 @@ preloadMapLayers world = do
             createSurfaceForTiles (idx, ts) = do
                 sf <- SDL.createRGBSurfaceEndian [SDL.HWSurface] 320 240 32 
                 pixel <- SDL.mapRGBA (SDL.surfaceGetPixelFormat sf) 0 0 0 0
-                SDL.fillRect sf Nothing pixel
-                mapM ((flip drawGraphic) sf) ts
-                let tile = head ts
-                return $ TileLayer sf idx (zOrder tile)
+                _ <- SDL.fillRect sf Nothing pixel
+                _ <- mapM ((flip drawGraphic) sf) ts
+                return $ TileLayer sf idx (zOrder (head ts))
             theTexture s = M.lookup (texture s) (worldTextures world)
             plotData s sf = PlotData sf (fromJust (theTexture s))
             drawGraphic s sf = runReaderT (draw s) (plotData s sf)
 
+audioRate :: Int
 audioRate = 22050
+audioFormat :: SDLm.AudioFormat
 audioFormat = SDL.AudioS16Sys
+audioChannels :: Int
 audioChannels = 2
+audioBuffers :: Int
 audioBuffers = 4096
 
 header :: String
@@ -270,7 +250,7 @@ foreign export ccall "haskell_main" main :: IO ()
 main :: IO ()
 main = do
     args <- getArgs
-    let (actions, nonOpts, msgs) = getOpt RequireOrder options args 
+    let (actions, _, _) = getOpt RequireOrder options args 
     let config = foldr ($) defaultConfig actions
     when (configShowVersion config) (do
         putStrLn "area v 0.0.1"
@@ -329,12 +309,13 @@ showHighscore world = do
     case e of
         SDL.Quit -> return ()
         SDL.KeyDown _ -> titlescreen' world $ TitleMenu 1
-        otherwise -> showHighscore world
+        _ -> showHighscore world
 
 showMenu :: World -> TitleMenu -> IO ()
 showMenu w menu | titleArrowPosition menu == 2 = return ()     -- exit
                 | titleArrowPosition menu == 0 = initWorld w
                 | titleArrowPosition menu == 1 = showHighscore w
+                | otherwise = return ()     -- should never happen
 
 titleMenuDown :: TitleMenu -> TitleMenu
 titleMenuDown menu = menu { titleArrowPosition = position' }
@@ -357,10 +338,10 @@ titlescreen' world menu = do
     let screen = worldScreen world
     let title = fromJust $ M.lookup titleGraphicId $ worldTextures world
     let arrow = fromJust $ M.lookup titleArrowGraphicId $ worldTextures world
-    SDL.blitSurface title Nothing screen Nothing
+    _ <- SDL.blitSurface title Nothing screen Nothing
     let pos = fromInteger $ titleArrowPosition menu
     let dstRect = SDL.Rect 120 (165 + pos * 15) 19 20
-    SDL.blitSurface arrow Nothing screen (Just $ dstRect)
+    _ <- SDL.blitSurface arrow Nothing screen (Just $ dstRect)
     SDL.flip screen
     e <- SDL.pollEvent
     case e of 
@@ -371,7 +352,7 @@ titlescreen' world menu = do
         SDL.KeyDown (SDL.Keysym SDL.SDLK_SPACE _ _) -> 
             showMenu world menu
         SDL.Quit -> return ()
-        otherwise -> titlescreen' world menu
+        _ -> titlescreen' world menu
 
 generateObjectList :: [Object] -> [(Object, [Object])]
 generateObjectList objects = map makeTuple objects
@@ -416,6 +397,7 @@ numberToItem o num | num < 50 = genHeartItem { itemTime = 0 }
                    | num >= 50 && num < 70 = genHeartItem
                    | num >= 70 && num < 80 = genArrowItem
                    | num >= 80 = genRupeeItem o
+                   | otherwise = genRupeeItem o
 
 setItemPositionFromObject :: Object -> Object -> Object
 setItemPositionFromObject item obj = item { itemSprite = spr }
@@ -429,7 +411,6 @@ doPlayItemSound world item = playSound sound (worldSounds world)
             sfx (ItemHeart _) = SoundPickupHeart
             sfx (ItemArrow _) = SoundPickupArrow
             sfx (ItemRupee _) = SoundPickupRupee
-            sfx _         = SoundPickupRupee
 
 itemToScore :: Object -> Integer
 itemToScore (Item _ _ (ItemRupee x)) = x
@@ -471,7 +452,6 @@ handleCollissionsForObjects world ticks = world'
             objects = worldObjects world
             hero = worldHero world
             moveableTiles = (map Moveable $ worldCollideableTiles world)
-            diff = 0.080 * (fromIntegral $ ticks - (worldTicks world))
 
 
 controlObjectsWithAi :: World -> World
@@ -502,7 +482,7 @@ advanceAnimations :: World -> Integer -> World
 advanceAnimations world ticks = world { worldAnimations = anis' }
     where   anis = map (flip move diff) $ worldAnimations world
             anis' = filter (not . isAnimationFinished) anis
-            diff = 0.080 * (fromIntegral $ ticks - (worldTicks world))
+            diff = 0.08 * (fromIntegral $ ticks - (worldTicks world))
 
 
 filterDeadObjects :: World -> World
@@ -518,7 +498,7 @@ computeScore world = sum $ map itemToScore $ map fst items
 
 handleSounds :: World -> IO ()
 handleSounds world = do
-        mapM (doPlayItemSound world) $ map fst items
+        _ <- mapM (doPlayItemSound world) $ map fst items
         handlePlayAttackSound world
         when (not . null $ filter (isCollission (boundingBox hero)) projs')
             (playSound SoundHurt $ worldSounds world)
@@ -554,7 +534,7 @@ renderBBoxes world = do
     let boxes = map (Just . bboxToRect) $ concatMap (boundingBoxes) enemies
     let sf = fromJust $ M.lookup coll16RectGraphicId $ worldTextures world
     let heroBox = Just $ bboxToRect $ boundingBox $ worldHero world
-    mapM (SDL.blitSurface sf Nothing screen) (heroBox : boxes)
+    _ <- mapM (SDL.blitSurface sf Nothing screen) (heroBox : boxes)
     return ()
     where   objs = worldObjects world
             enemies = filter isEnemy objs
@@ -599,7 +579,7 @@ showGameOver world = do
 
 showGameOver' :: World -> IO ()
 showGameOver' world = do
-    SDL.blitSurface gameOverSurface Nothing screen Nothing
+    _ <- SDL.blitSurface gameOverSurface Nothing screen Nothing
     SDL.flip $ screen
     SDL.delay 20
     e <- SDL.pollEvent
@@ -608,7 +588,7 @@ showGameOver' world = do
         (SDL.KeyDown _) -> (doHighscoreInput world >>= \w -> 
                             writeHighscore (worldHighscores w) >>
                             titlescreen w (TitleMenu 0))
-        otherwise -> showGameOver' world
+        _ -> showGameOver' world
     where   gameOverSurface = fromJust $ M.lookup gameOverId $ tex
             tex = worldTextures world
             screen = worldScreen world
@@ -639,11 +619,11 @@ handleGameOver world | isHeroDead && not aniShown = world'
             hero' = heroSetAni world (heroDead world)
 
 doPlaySword :: World -> Bool -> IO ()
-doPlaySword world False = return ()
+doPlaySword _ False = return ()
 doPlaySword world True = playSound SoundSword (worldSounds world) 
 
 doPlayBow :: World -> Bool -> IO ()
-doPlayBow world False = return ()
+doPlayBow _ False = return ()
 doPlayBow world True = playSound SoundBow (worldSounds world) 
 
 handlePlayAttackSound :: World -> IO ()
@@ -672,9 +652,6 @@ handlePlayAttackSound world = doPlaySword world (hasAniStarted && isSwordGid)
                             , heroSwordRightId ]
 
 
-constNotNull vec vec' | zeroVec vec = vec'
-                      | otherwise   = vec
-
 crossSprite ::Vector -> Sprite
 crossSprite (Vector x y z) = Sprite (-1) 1 position dir pDir 0.0 offset animator
     where   position = BBox x y z 16.0 16.0
@@ -690,6 +667,7 @@ renderPath world obj = mapM_ drawGraphic sprites
             moves = moveStrategyMoves strategy
             strategy = objMoveStrategy obj
             moveToVec (MoveTo pos _ _) = pos
+            moveToVec _ = defaultVector
             theTexture s = M.lookup (texture s) (worldTextures world)
             screen = worldScreen world
             plotData s = PlotData screen (fromJust (theTexture s))
@@ -703,11 +681,11 @@ withHeroDirection :: World -> (Vector -> Vector) -> World
 withHeroDirection world fun | heroCanMove world = world { worldHero = hero' }
                             | otherwise = world
     where   direction' = fun $ spriteDirection $ objectSprite $ worldHero world
-            direction = spriteDirection $ objectSprite $ worldHero world
+            dir = spriteDirection $ objectSprite $ worldHero world
             hero = worldHero world
             hSprite = objectSprite hero
-            prevDir | zeroVec direction = spritePrevDirection $ hSprite
-                    | otherwise = direction
+            prevDir | zeroVec dir = spritePrevDirection $ hSprite
+                    | otherwise = dir
             sprite' = (objectSprite $ worldHero world) { 
                         spriteDirection = direction'
                       , spritePrevDirection = prevDir
@@ -782,6 +760,7 @@ heroSetAni world logger = hero'
 weaponToHeroAni :: Weapon -> (World -> Direction -> Object)
 weaponToHeroAni weapon | weaponIcon weapon == swordId =  heroSetSwordSlay
                        | weaponIcon weapon == bowSpriteId = heroSetBow
+                       | otherwise = heroSetSwordSlay      -- default
     
 shootProjectile :: World -> World
 shootProjectile world | canShoot && heroCanMove world  
@@ -794,7 +773,7 @@ shootProjectile world | canShoot && heroCanMove world
                                      position False (Just hero) start
             start = weaponFrameStart activeWeapon
             hero = worldHero world
-            hero' = ((weaponToHeroAni activeWeapon) world (vectorToDirection direction))
+            hero' = ((weaponToHeroAni activeWeapon) world (vectorToDirection heroDirection))
                          { objectWeaponLastShoot = worldTicks world
                          , objectWeapons = weapons'
                          }
@@ -811,11 +790,8 @@ shootProjectile world | canShoot && heroCanMove world
                        in prefix ++ (activeWeapon' : suffix)
             position = Vector (bboxX bbox) (bboxY bbox) 2.0
             bbox = boundingBox hero
-            heroDirection = spriteDirection hSprite
-            direction 
-                | zeroVec $ heroDirection = spritePrevDirection hSprite
-                | otherwise = heroDirection
-            direction' = direction `vecMul` (weaponVelocity activeWeapon)
+            heroDirection = spriteFacing hSprite
+            direction' = heroDirection `vecMul` (weaponVelocity activeWeapon)
             canShoot = weaponCooldown activeWeapon < diffTicks &&
                        weaponHasEnoughAmmo activeWeapon
             diffTicks = worldTicks world - objWeaponLastShoot hero 

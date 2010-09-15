@@ -22,7 +22,9 @@ import Tile
 spawnPoint :: (Integer, Integer)
 spawnPoint = (7, 3)
 
+spawnX :: Double
 spawnX = 16.0 * (fromInteger $ fst spawnPoint)
+spawnY :: Double
 spawnY = 16.0 * (fromInteger $ snd spawnPoint)
 
 {- Our yellow foe is a yellow enemy with 1 HP and only a closed ranged attack. -}
@@ -32,12 +34,12 @@ yellowFoe = Object 1 3 fSprite [weaponSword'] 0 0 charAnimator defaultMoveStrate
             position = BBox spawnX spawnY 1.0 16.0 16.0
             weaponSword' = Weapon 1 wSprite 0 10 swordId 600 0 (-1) []
 
+wSprite :: Sprite
 wSprite = defaultSprite { spriteId = 100
                         , spriteGraphic = swordSpriteId
                         , spriteTextureOffset = defaultCharOffset
                         , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
-                        , spriteAnimator = charAnimator
-                        } 
+                        , spriteAnimator = charAnimator } 
 
 {- Our green foe is a green enemy with 2 HP and only a closed ranged attack. -}
 greenFoe :: Object
@@ -57,8 +59,7 @@ rangedFoe = Object 1 3 fSprite [weaponStone] 0 0 charAnimator defaultMoveStrateg
                                     , spriteGraphic = rockSpriteId
                                     , spriteTextureOffset = defaultCharOffset
                                     , spriteAnimator = charAnimator
-                                    , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
-                                    }
+                                    , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0 }
 
 
 {- Our skeletton foe is an enemy with 2 HP and only a closed ranged attack. 
@@ -72,9 +73,9 @@ skelettonFoe = Object 2 3 fSprite [weaponSword'] 0 0 charAnimator defaultMoveStr
 
 {- Our boss is a worm. he has 2 hps and drains 2 hps -}
 bossFoe :: Object
-bossFoe = WormBoss 2 3 wormSprites [weaponSword'] 0 0 charAnimator
+bossFoe = WormBoss 2 3 spriteList [weaponSword'] 0 0 charAnimator
             defaultMoveStrategy [] WormStateNormal
-    where   wormSprites = [headSprite, pointSprite, middleSprite1, middleSprite2, tailSprite]
+    where   spriteList = [headSprite, pointSprite, middleSprite1, middleSprite2, tailSprite]
             weaponSword' = Weapon 2 wSprite 0 10 swordId 600 0 (-1) []
             headSprite = Sprite 4 foe5GraphicId headPos defaultVector 
                                 defaultVector 0.0 wormCharOffset wormHeadAnimator
@@ -98,14 +99,15 @@ typeToMonster 1 = greenFoe
 typeToMonster 2 = rangedFoe
 typeToMonster 3 = skelettonFoe
 typeToMonster 4 = bossFoe 
+typeToMonster _ = yellowFoe
 
 monstersForLevel :: Integer -> [Object]
 monstersForLevel lvl = map genMonsters [2 .. (numMonsters + 1)]
-    where   numMonsters = (round `div` 2) + 1
-            hpPlus = ((round + 1) `div` 2)
+    where   numMonsters = (turn `div` 2) + 1
+            hpPlus = ((turn + 1) `div` 2)
             monster' = objSetHp monster (objHp monster + hpPlus)
             monster = typeToMonster monsterType
-            round = lvl `div` 5
+            turn = lvl `div` 5
             monsterType = lvl `mod` 5
             genMonsters i = objSetId monster' i
 
@@ -122,8 +124,7 @@ tryPlaceMonster world | null pending = world
             blockingObjs = filter (not . isItem) objects
             pending = worldPendingMonster world
             world' = world { worldPendingMonster = tail pending
-                           , worldObjects = placedMonster : objects 
-                           }
+                           , worldObjects = placedMonster : objects }
             placedMonster = objSetPosition (head pending) spawnVec
             x = fromInteger $ fst spawnPoint
             y = fromInteger $ snd spawnPoint

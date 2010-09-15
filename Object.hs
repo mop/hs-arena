@@ -40,7 +40,6 @@ import Collission
 import Maybe (isJust, fromJust)
 import Movemap
 import Animation
-import System.IO.Unsafe (unsafePerformIO)
 
 modifySprite :: (Sprite -> Sprite) -> Object -> Object
 modifySprite f o@(Object _ _ _ _ _ _ _ _) = 
@@ -65,6 +64,7 @@ objSetSprites o s | isObject o = o { objectSprite = head s }
                   | isProjectile o = o { projectileSprite = head s }
                   | isItem o = o { itemSprite = head s }
                   | isWorm o = o { wormSprites = s }
+                  | otherwise = undefined
 
 objMoveStrategy :: Object -> MoveStrategy
 objMoveStrategy (Object _ _ _ _ _ _ _ m) = m
@@ -98,6 +98,7 @@ objWeaponLastShoot o | isObject o = objectWeaponLastShoot o
                      | isWorm o = wormWeaponLastShoot o
                      | otherwise = (-1)
 
+objDefaultAnimator :: Object -> Animator
 objDefaultAnimator obj | isObject obj = objectDefaultAnimator obj
                        | isWorm obj = wormDefaultAnimator obj
                        | otherwise = defaultAnimator
@@ -171,25 +172,13 @@ objSetHp o h | isObject o = o { objectHp = h }
              | isWorm o = o { wormHp = h }
              | otherwise = o
 
-setVecToOne :: Vector -> Vector
-setVecToOne (Vector x y z) = Vector x' y' z'
-    where   x' = trimmer x
-            y' = trimmer y
-            z' = trimmer z
-            trimmer v | v < 0.0 = (-1.0)
-                      | v > 0.0 = 1.0
-                      | otherwise = 0.0
-spritePosReached :: Sprite -> Vector -> Bool
-spritePosReached spr pos = vecLength (pos `vecMinus` spos) <= 1.0
-    where   spos = bboxToVector . spritePosition $ spr
-
 dropLengthFromWps :: [(Vector, Vector)] -> Double -> [(Vector, Vector)]
-dropLengthFromWps [] len = []
+dropLengthFromWps [] _ = []
 dropLengthFromWps wps@((x, _):y'@(y, _):xs) len 
     | len <= 0.0 = wps
     | otherwise = dropLengthFromWps (y':xs) (len - diff)
     where   diff = vecLength (x `vecMinus` y)
-dropLengthFromWps _ len = []
+dropLengthFromWps _ _ = []
 
 moveWorm :: Object -> Double -> Object
 moveWorm w diff | not $ isWorm w = w
@@ -208,23 +197,20 @@ moveWorm w diff | not $ isWorm w = w
                          , spriteDirection spr )
             w' = w { wormWaypoints = waypoints'' }
             lastWp = last waypoints'
-            moveTail (wps, xs) sprite 
-                | null waypoints' = (wps, xs ++ [sprite])
+            moveTail (wps, xs) s 
+                | null waypoints' = (wps, xs ++ [s])
                 | null wps || null wps' =  (wps', xs ++ [spriteOnLastWp])
-                | otherwise = let spr' = setSpriteToWp sprite (head wps')
+                | otherwise = let spr' = setSpriteToWp s (head wps')
                               in (wps', xs ++ [spr'])
                 where   wps' = dropLengthFromWps wps 12.0
-                        spriteOnLastWp = setSpriteToWp sprite lastWp
-            setSpriteToWp sprite wp = 
-                              let posVec = bboxToVector $ spritePosition sprite
-                                  (nextVec, diffVec) = wp
-                                  spr' = sprite { spriteDirection = diffVec }
+                        spriteOnLastWp = setSpriteToWp s lastWp
+            setSpriteToWp s wp = 
+                              let (nextVec, diffVec) = wp
+                                  spr' = s { spriteDirection = diffVec }
                                   spr'' = move spr' diff
                                   pos = spritePosition spr''
                                   pos' = bboxSetPosition pos nextVec
                               in spr'' { spritePosition = pos' }
-
-                                    
 
 instance Moveable_ Object where
 	move o diff = objectDoMove o (diff * (fromInteger $ objToVelocity o) / 10)
@@ -253,6 +239,8 @@ objectDoMove' (MoveStrategy (DefaultMove:_) canMove) o diff
     | isWorm o = wormHandleAngry o
     | otherwise = o
 
+objectDoMove' (MoveStrategy [] _) _ _ = undefined
+
 objectDoMove' ms@(MoveStrategy (StopMove:xs) _) o diff =
     objectDoMove (objSetMoveStrategy o (ms { moveStrategyMoves = xs
                                            , moveStrategyCanMove = False 
@@ -266,7 +254,6 @@ objectDoMove' ms@(MoveStrategy ((Wait f):xs) _) o diff
             zippedList = zip sprs animators
             animators = map (\s -> animatorNext (spriteAnimator s) s) sprs
             sprs = objToSprites o
-            spr = objectSprite o
             o' = objSetMoveStrategy o ms''
             ms'' = ms { moveStrategyMoves = (Wait $ f - 1) : xs }
 
@@ -316,9 +303,9 @@ objectDoMove' ms@(MoveStrategy (WaitAnimation:xs) _) o diff
             sprs = objToSprites o
             sprs' = map advanceAni sprs
             strategy = ms { moveStrategyMoves = xs }
-            advanceAni spr = let ani = spriteAnimator spr
-                                 ani' = animatorNext ani spr
-                             in spr { spriteAnimator = ani' }
+            advanceAni s = let ani = spriteAnimator s
+                               ani' = animatorNext ani s
+                             in s { spriteAnimator = ani' }
 
 objectDoMove' ms@(MoveStrategy (StartMove:xs) _) o diff =
     objectDoMove (objSetMoveStrategy o ms { moveStrategyMoves = xs
@@ -466,7 +453,7 @@ bounceBackObject obj projectile = objSetMoveStrategy obj strategy'
                                  }
 
 isOwnProjectile :: Object -> Object -> Bool
-isOwnProjectile obj proj@(Projectile _ _ _ _ _ o _) =
+isOwnProjectile obj (Projectile _ _ _ _ _ o _) =
     let result = o >>= (return . ((objId obj) ==) . objId)
     in isJust result && fromJust result
 isOwnProjectile _ _ = False
@@ -539,6 +526,7 @@ wormDoShowAnimations (headAni:pointAni:middleAni:tailAni:[]) spriteLen i
             >> waitMoving 3
     | otherwise = applyFunction (wormSetAni i middleAni)
             >> waitMoving 3
+wormDoShowAnimations _ _ _ = return () -- error
 
 wormShowAnimations :: Object -> [Animator] -> MoveLogger ()
 wormShowAnimations worm anis = mapM_ (wormDoShowAnimations anis spriteLen) spriteList
@@ -547,6 +535,7 @@ wormShowAnimations worm anis = mapM_ (wormDoShowAnimations anis spriteLen) sprit
             
 wormAngryVal :: WormWoundState -> Integer
 wormAngryVal (WormStateAngry i) = i
+wormAngryVal _ = (-1)  -- error
 {- this function handles the transition from angry to regular. It is called each
    time the move-function is called. -}
 wormHandleAngry :: Object -> Object
@@ -602,6 +591,8 @@ wormHandleHitEvent worm proj
         wormGoAngry (subtractHp worm (weaponStrength $ projectileWeapon proj))
     | wormIsNormal worm = 
         wormGoWounded worm
+    | otherwise  = wormGoWounded worm {- should never happen, assume normal     
+                                         state -}
         
 
 handleObjectEvents :: Object -> [Object] -> Object
@@ -699,9 +690,7 @@ weaponDecAmmo w | weaponHasEnoughAmmo w = w { weaponAmmo = (weaponAmmo w) - 1 }
 
 objIsCollission' :: Object -> Moveable -> Bool
 objIsCollission' o1 o2 = not . null $ collidedBoxes
-        where   o1Box = boundingBox o1
-                o2Box = boundingBox o2
-                boxes1 = boundingBoxes o1
+        where   boxes1 = boundingBoxes o1
                 boxes2 = boundingBoxes o2
                 collidedBoxes = [ (b1, b2) | b1 <- boxes1
                                            , b2 <- boxes2 
@@ -733,8 +722,8 @@ objHandleCollission'' o1 o2 | not $ objIsCollission o1 o2 = o1
                                   z = vecZ $ maximumBy (cmp vecZ) responseVecs
                                   sprites' = map (deltaPos (Vector x y z)) $ objToSprites o1
                               in objSetSprites o1 sprites'
-            deltaPos vec sprite = sprite { spritePosition = pos' }
-                where   pos = spritePosition sprite
+            deltaPos vec spr = spr { spritePosition = pos' }
+                where   pos = spritePosition spr
                         pos' = pos { bboxX = x + vecX vec
                                    , bboxY = y + vecY vec
                                    , bboxZ = z + vecZ vec }

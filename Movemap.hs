@@ -21,8 +21,6 @@ where
 
 import Types
 
-import qualified Graphics.UI.SDL as SDL
-
 instance Monad MoveLogger where
     return a = MoveLogger ([], a)
     m >>= f = MoveLogger $

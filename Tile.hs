@@ -5,9 +5,8 @@ where
 import Types
 
 import qualified Graphics.UI.SDL as SDL
-import Data.List (sortBy)
 import Control.Monad.Reader
-import Data.List (maximum, minimum)
+import Data.List (sortBy)
 
 
 vectorToDirection :: Vector -> Direction
@@ -31,36 +30,36 @@ bboxSetPosition box (Vector x y z) = box { bboxX = x
                                          , bboxZ = z }
 
 bboxToVector :: BBox -> Vector
-bboxToVector (BBox x y z w h) = Vector x y z
+bboxToVector (BBox x y z _ _) = Vector x y z
 
 doDraw :: SDL.Rect -> SDL.Rect -> PlotDataMIO ()
 doDraw texRect bgRect = do
     bg  <- fmap plotBackground $ ask
     tex <- fmap plotTexture $ ask
-    liftIO $ SDL.blitSurface tex (Just texRect) bg (Just bgRect)
+    _ <- liftIO $ SDL.blitSurface tex (Just texRect) bg (Just bgRect)
     return ()
 
 instance Drawable_ Tile where
-    draw tile = ask >>= \(PlotData bg tex) -> 
+    draw t = ask >>= \(PlotData _ tex) -> 
                 doDraw (texRect (texX tex) (texY tex)) bgRect
         where   texRect x y = SDL.Rect x y width height
-                bgRect  = bboxToRect (tilePosition tile) 
+                bgRect  = bboxToRect (tilePosition t) 
                 width  = SDL.rectW bgRect
                 height = SDL.rectH bgRect
-                graphicId = tileIndex tile
+                graphicId = tileIndex t
                 surfW surface = (fromIntegral $ SDL.surfaceGetWidth surface) `div` 
                                 (fromIntegral width)
                 texY :: SDL.Surface -> Int
                 texY surface = width * (fromInteger $ graphicId `div` (surfW surface))
                 texX :: SDL.Surface -> Int
-                texX surface = width * (fromInteger $ (tileIndex tile) `mod` (surfW surface))
+                texX surface = width * (fromInteger $ (tileIndex t) `mod` (surfW surface))
     zOrder = bboxZ . tilePosition 
     texture = tileGraphic 
 
 instance Drawable_ TileLayer where
-    draw layer = ask >>= \(PlotData bg tex) -> 
-                    (liftIO $ SDL.blitSurface (tex) Nothing
-                                             bg Nothing) >> return ()
+    draw _ = ask >>= \(PlotData bg tex) -> 
+              (liftIO $ SDL.blitSurface (tex) Nothing bg Nothing) 
+              >> return ()
     zOrder = tileLayerZ
     texture = tileLayerGraphic
 
@@ -98,25 +97,25 @@ vecLength :: Vector -> Double
 vecLength (Vector x y z) = sqrt (x * x + y * y + z * z)
 
 instance Drawable_ Sprite where
-    draw sprite = doDraw texRect bgRect
+    draw spr = doDraw texRect bgRect
         where   bgRect = bboxToRect spritePosition'
-                pos = spritePosition sprite
+                pos = spritePosition spr
                 spritePosition' = pos { bboxX = bboxX pos - offX
                                       , bboxY = bboxY pos - offY
                                       , bboxW = w
                                       , bboxH = h }
-                offX = vecX $ spriteTextureOffset sprite
-                offY = vecY $ spriteTextureOffset sprite
+                offX = vecX $ spriteTextureOffset spr
+                offY = vecY $ spriteTextureOffset spr
                 w = fromIntegral $ SDL.rectW texRect
                 h = fromIntegral $ SDL.rectH texRect
-                texRect = runAnimator (spriteAnimator sprite) sprite
+                texRect = runAnimator (spriteAnimator spr) spr
     zOrder = bboxZ . spritePosition
     texture = spriteGraphic
 
 spriteFacing :: Sprite -> Vector
-spriteFacing sprite | zeroVec dir = spritePrevDirection sprite
-                    | otherwise = dir
-    where   dir = spriteDirection sprite
+spriteFacing spr | zeroVec dir = spritePrevDirection spr
+                 | otherwise = dir
+    where   dir = spriteDirection spr
 
 
 instance Show Drawable where

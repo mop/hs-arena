@@ -8,7 +8,7 @@ import qualified Data.Map as M
 import Types
 
 {- TODO, implement loading from _REAL_ path -}
-import Paths_fight
+-- import Paths_fight
 
 crossGraphicId :: Integer
 crossGraphicId = 1
@@ -84,11 +84,17 @@ foe3GraphicId :: Integer
 foe3GraphicId = 36
 foe4GraphicId :: Integer
 foe4GraphicId = 37
+titleGraphicId :: Integer
 titleGraphicId = 38
+titleArrowGraphicId :: Integer
 titleArrowGraphicId = 39
+highscoreGraphicId :: Integer
 highscoreGraphicId = 40
+fontGraphicId :: Integer
 fontGraphicId = 41
+foe5GraphicId :: Integer
 foe5GraphicId = 42
+coll16RectGraphicId :: Integer
 coll16RectGraphicId = 43
 
 graphicTextureMap :: [(Integer, String)]
