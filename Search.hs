@@ -81,7 +81,7 @@ search m start goal = let result = doSearch openSet closedSet M.empty g
                             openSet' = foldr insertOpenSet openSetIn ns'''
                             g' = foldr insertIntoG gIn nsG
                     in doSearch openSet' closedSetIn comeFrom' g'
-                where   gVal = fromJust $ M.lookup x g
+                where   gVal = fromJust $ M.lookup x gIn
                         ns = neighbors m x
                         ns' :: [Position]
                         ns' = filter (not . (flip S.member closedSetIn)) ns

@@ -10,6 +10,7 @@ import Types
 import Tile
 import Object
 import Movemap
+import Math (vecMinus, bboxSetPosition, vecMul)
 
 import Data.List (nub, minimumBy, foldl')
 import Array

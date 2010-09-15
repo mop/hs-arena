@@ -11,12 +11,16 @@ where
 
 {- This module is responsible for generating all monster-templates -}
 
-import Types
-import Animation
+import Types ( Object(..), Sprite(..), World(..), Vector(..)
+             , defaultVector, BBox(..), Weapon(..), WormWoundState(..)
+             , defaultSprite, defaultMoveStrategy)
+import Animation ( charAnimator, wormHeadAnimator, wormPointAnimator
+                 , wormMiddleAnimator, wormTailAnimator, defaultCharOffset
+                 , wormCharOffset)
 import Graphics
-import Collission
-import Object
-import Tile
+import Collission (isCollission)
+import Object (objSetHp, objHp, objSetId, isItem, objSetPosition, isEnemy)
+import Tile (Moveable_(..))
 
 
 spawnPoint :: (Integer, Integer)

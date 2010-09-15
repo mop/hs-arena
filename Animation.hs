@@ -1,8 +1,32 @@
 module Animation
+    ( defaultCharOffset
+    , wormCharOffset
+    , defaultBattleOffset
+    , charAnimator
+    , fixedCharAnimator
+    , fixedWoundedCharAnimator
+    , fixedWoundedHeroAnimator
+    , frameAnimator
+    , frameStopAnimator
+    , heroAnimator
+    , itemAnimator
+    , wormHeadAnimator
+    , wormPointAnimator
+    , wormMiddleAnimator
+    , wormTailAnimator
+    , wormWoundedHeadAnimator
+    , wormWoundedPointAnimator
+    , wormWoundedMiddleAnimator
+    , wormWoundedTailAnimator
+    , wormAngryHeadAnimator
+    , wormAngryPointAnimator
+    , wormAngryMiddleAnimator 
+    , wormAngryTailAnimator
+    )
 where
 
 import Types (Sprite(..), Animator(..), Direction(..), Vector(..))
-import Tile (zeroVec, vectorToDirection)
+import Math (vectorToDirection, zeroVec)
 
 import qualified Graphics.UI.SDL as SDL
 

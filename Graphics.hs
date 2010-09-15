@@ -1,5 +1,6 @@
 module Graphics 
 where
+-- export everything
 
 {- This module is responsible for loading all graphic-objects -}
 

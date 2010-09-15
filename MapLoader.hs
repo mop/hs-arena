@@ -1,4 +1,10 @@
 module MapLoader
+    ( loadTilesets
+    , loadTiles
+    , Tileset(..)
+    , TilesetLayer(..)
+    , TilesetTile(..)
+    )
 where
 
 import Text.XML.HaXml

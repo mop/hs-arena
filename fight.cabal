@@ -34,6 +34,7 @@ Executable fight
                      Highscore
                      Main
                      MapLoader
+                     Math
                      Monster
                      Movemap
                      Object

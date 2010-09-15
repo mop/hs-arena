@@ -22,6 +22,7 @@ import Sound
 import Graphics
 import Monster
 import Highscore
+import Math (bboxToRect, zeroVec, vectorToDirection, vecMul)
 
 heroSwordAnimations :: [(Direction, Integer)]
 heroSwordAnimations = [ (DirUp, heroSwordUpId)
@@ -299,7 +300,6 @@ initWorld world = do
 data TitleMenu = TitleMenu {
     titleArrowPosition :: Integer
 }
-
 
 showHighscore :: World -> IO ()
 showHighscore world = do

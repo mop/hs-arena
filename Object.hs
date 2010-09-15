@@ -34,12 +34,36 @@ where
 
 import Data.List (foldl', maximumBy)
 
-import Tile
-import Types
-import Collission
+import Tile (Moveable(..), Moveable_(..), spriteFacing)
+import Types ( Vector(..), Object(..), Sprite(..)
+             , BBox(..), Weapon(..), WormWoundState(..)
+             , MoveStrategy(..), Move(..), MoveLogger(..)
+             , Animator(..), defaultMoveStrategy, defaultAnimator
+             , defaultVector, Direction(..), ItemType(..))
+import Collission (isCollission, collissionResponse', collissionResponse)
 import Maybe (isJust, fromJust)
-import Movemap
-import Animation
+import Movemap ( startAnimation, setTextureOffset, startMoving, resetMovements
+               , stopMoving, waitMoving, applyFunction, isAiMove
+               , setGraphic, setVelocity, aniMoveToTimed)
+import Animation ( fixedWoundedHeroAnimator
+                 , fixedWoundedCharAnimator
+                 , defaultCharOffset
+                 , wormWoundedHeadAnimator
+                 , wormWoundedPointAnimator
+                 , wormWoundedMiddleAnimator
+                 , wormWoundedTailAnimator
+                 , wormHeadAnimator
+                 , wormPointAnimator
+                 , wormMiddleAnimator
+                 , wormTailAnimator
+                 , wormAngryHeadAnimator
+                 , wormAngryPointAnimator
+                 , wormAngryMiddleAnimator
+                 , wormAngryTailAnimator
+                 )
+import Math ( vecMinus, vecLength, bboxToVector
+            , bboxSetPosition, vecPlus , vecMulD
+            , vecMul, vectorToDirection )
 
 modifySprite :: (Sprite -> Sprite) -> Object -> Object
 modifySprite f o@(Object _ _ _ _ _ _ _ _) = 
