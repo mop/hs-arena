@@ -9,6 +9,8 @@ import Control.Monad.Reader (runReaderT)
 import Maybe (fromJust, isJust)
 import Random (randomIO)
 import System.IO.Unsafe (unsafePerformIO)
+import System.Console.GetOpt
+import System (getArgs, exitWith, ExitCode(..))
 
 import Types
 import Tile
@@ -257,9 +259,24 @@ audioFormat = SDL.AudioS16Sys
 audioChannels = 2
 audioBuffers = 4096
 
+header :: String
+header = "Usage: arena [OPTION...]"
+options :: [OptDescr (Config -> Config)]
+options = [ Option ['V'] ["version"] (NoArg (\c -> c { configShowVersion = True })) "show version number" 
+          , Option ['p'] ["paths"] (NoArg (\c -> c { configShowPaths = True })) "show path-finder paths" 
+          , Option ['b'] ["boxes"] (NoArg (\c -> c { configShowBoundingBoxes = True })) "show bounding boxes" ]
+
 foreign export ccall "haskell_main" main :: IO ()
 main :: IO ()
 main = do
+    args <- getArgs
+    let (actions, nonOpts, msgs) = getOpt RequireOrder options args 
+    let config = foldr ($) defaultConfig actions
+    when (configShowVersion config) (do
+        putStrLn "area v 0.0.1"
+        putStrLn $ usageInfo header options
+        exitWith ExitSuccess)
+        
     SDL.init [SDL.InitVideo, SDL.InitAudio]
     SDL.enableUnicode True
     SDLm.openAudio audioRate audioFormat audioChannels audioBuffers 
@@ -272,6 +289,7 @@ main = do
     sounds <- loadSounds
     let world = World screen [] [] [] (monstersForLevel 0) [] genHero textures 
                       ticks ticks defaultVector 0 music sounds 0 [] highscore
+                      config
     world' <- (loadMap "images/map.tmx" world >>= preloadMapLayers)
 
     SDLm.playMusic music (-1)
@@ -531,24 +549,24 @@ collidedItems world = filter ((isCollission $ boundingBox hero) . snd)
             objects = worldObjects world
             hero = worldHero world
 
-toSDLRect :: BBox -> SDL.Rect
-toSDLRect (BBox x y z w h) = SDL.Rect (floor x) (floor y) (floor w) (floor h)
-renderBBoxWorm :: World -> IO ()
-renderBBoxWorm world | null $ filter isWorm $ objs = return ()
-                     | otherwise = do
-    let boxes = map (Just . toSDLRect) $ concatMap (boundingBoxes) $ filter isWorm objs
+renderBBoxes :: World -> IO ()
+renderBBoxes world = do
+    let boxes = map (Just . bboxToRect) $ concatMap (boundingBoxes) enemies
     let sf = fromJust $ M.lookup coll16RectGraphicId $ worldTextures world
-    let heroBox = Just $ toSDLRect $ boundingBox $ worldHero world
+    let heroBox = Just $ bboxToRect $ boundingBox $ worldHero world
     mapM (SDL.blitSurface sf Nothing screen) (heroBox : boxes)
     return ()
     where   objs = worldObjects world
+            enemies = filter isEnemy objs
             screen = worldScreen world
 eventHandler :: World -> IO ()
 eventHandler world = do
     render world
     renderControls world
-    renderBBoxWorm world
-    mapM (renderPath world) $ filter isEnemy $ worldObjects world
+    when (configShowBoundingBoxes . worldConfig $ world) 
+        (renderBBoxes world)
+    when (configShowPaths . worldConfig $ world)
+        (mapM_ (renderPath world) $ filter isEnemy $ worldObjects world)
     SDL.flip $ worldScreen world
     SDL.delay 10
 

@@ -111,6 +111,7 @@ data Move = DefaultMove
           | StopMove
           | StartMove
           | MoveTo Vector Integer MoveOwner
+          | ApplyFunction (Object -> Object)
           | Wait Integer
           | SetVelocity Integer
           | SetGraphic Integer
@@ -118,6 +119,12 @@ data Move = DefaultMove
           | SetTextureOffset Vector
           | WaitAnimation
     deriving (Show, Eq)
+
+instance Show (Object -> Object) where
+    show f = "fun :: (Object -> Object)"
+
+instance Eq (Object -> Object) where
+    f1 == f2 = True
 
 newtype MoveLogger a = MoveLogger { unMoveLogger :: ([Move], a) }
 
@@ -163,7 +170,13 @@ data Object = Object {
     , wormDefaultAnimator :: !Animator
     , wormMoveStrategy    :: !MoveStrategy
     , wormWaypoints       :: !WormWaypoints
+    , wormWoundState      :: !WormWoundState
   } deriving (Show, Eq)
+
+data WormWoundState = WormStateNormal
+                    | WormStateWounded
+                    | WormStateAngry Integer
+                    deriving (Show, Eq)
 
 -- a waypoint is a position direction tuple
 type WormWaypoints = [(Vector, Vector)]
@@ -214,6 +227,15 @@ data World = World {
   , worldLevel            :: !Integer
   , worldPendingMonster   :: ![Object]
   , worldHighscores       :: ![HighscoreEntry]
+  , worldConfig           :: !Config
 }
+
+data Config = Config {
+    configShowBoundingBoxes :: !Bool
+  , configShowPaths         :: !Bool
+  , configShowVersion       :: !Bool
+}
+
+defaultConfig = Config False False False
 
 type HighscoreEntry = (String, Integer)

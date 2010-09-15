@@ -39,8 +39,8 @@ worldHeight world = floor $ (maxYTile - minYTile) / tileSize
 
 emptyCollissionMap :: World -> Array Int Bool
 emptyCollissionMap world = array (0, size - 1) [ (n, False) | n <- [0..(size-1)] ]
-    where   height = worldHeight world
-            width  = worldWidth world
+    where   height = worldHeight world + 1
+            width  = worldWidth world + 1
             size = fromInteger $ height * width
 
 markCollission :: Array Int Bool -> Integer -> Integer -> (Int, Int) -> Array Int Bool

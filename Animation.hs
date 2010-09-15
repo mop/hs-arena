@@ -22,6 +22,14 @@ wormHeadAnimator = CustomAnimator (wormOffsetAnimation 0 0) charMoveNext 4 10 0 
 wormPointAnimator = CustomAnimator (wormOffsetAnimation 0 128) charMoveNext 4 10 0 0
 wormMiddleAnimator = CustomAnimator (wormOffsetAnimation 96 0) charMoveNext 4 10 0 0
 wormTailAnimator = CustomAnimator (wormOffsetAnimation 96 128) charMoveNext 4 10 0 0
+wormWoundedHeadAnimator = CustomAnimator (wormOffsetAnimation 0 256) charMoveNext 4 10 0 0
+wormWoundedPointAnimator = CustomAnimator (wormOffsetAnimation 0 384) charMoveNext 4 10 0 0
+wormWoundedMiddleAnimator = CustomAnimator (wormOffsetAnimation 96 256) charMoveNext 4 10 0 0
+wormWoundedTailAnimator = CustomAnimator (wormOffsetAnimation 96 384) charMoveNext 4 10 0 0
+wormAngryHeadAnimator = CustomAnimator (wormOffsetAnimation 0 512) charMoveNext 4 10 0 0
+wormAngryPointAnimator = CustomAnimator (wormOffsetAnimation 0 640) charMoveNext 4 10 0 0
+wormAngryMiddleAnimator = CustomAnimator (wormOffsetAnimation 96 512) charMoveNext 4 10 0 0
+wormAngryTailAnimator = CustomAnimator (wormOffsetAnimation 96 640) charMoveNext 4 10 0 0
 fixedCharAnimator :: Direction -> Animator
 fixedCharAnimator dir = CustomAnimator (fixedCharAnimation dir) charMoveNext 4 10 0 0
 fixedWoundedCharAnimator :: Direction -> Animator
@@ -88,7 +96,6 @@ fixedCharAnimation dir sprite = SDL.Rect xTexCoord yTexCoord 24 32
     where   yTexCoord = directionToYTex dir
             xTexCoord = aniCountToXTex (animatorCount animator)
             animator = spriteAnimator sprite
-            direction = spriteDirection sprite
 
 charAnimation :: Sprite -> SDL.Rect
 charAnimation sprite = SDL.Rect xTexCoord yTexCoord 24 32

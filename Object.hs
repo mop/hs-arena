@@ -50,7 +50,7 @@ modifySprite f p@(Projectile _ _ _ _ _ _ _) =
                    let sprite' = f (projectileSprite p)
 				   in p { projectileSprite = sprite' }
 modifySprite f i@(Item spr _ _) = i { itemSprite = f spr }
-modifySprite f w@(WormBoss _ _ _ _ _ _ _ _ _) = 
+modifySprite f w@(WormBoss _ _ _ _ _ _ _ _ _ _) = 
                     let sprites' = map f (wormSprites w)
                     in w { wormSprites = sprites' }
 
@@ -58,7 +58,7 @@ objToSprites :: Object -> [Sprite]
 objToSprites (Object _ _ spr _ _ _ _ _) = [spr]
 objToSprites (Projectile _ spr _ _ _ _ _) = [spr]
 objToSprites (Item spr _ _) = [spr]
-objToSprites (WormBoss _ _ sprs _ _ _ _ _ _) = sprs
+objToSprites (WormBoss _ _ sprs _ _ _ _ _ _ _) = sprs
 
 objSetSprites :: Object -> [Sprite] -> Object
 objSetSprites o s | isObject o = o { objectSprite = head s }
@@ -68,7 +68,7 @@ objSetSprites o s | isObject o = o { objectSprite = head s }
 
 objMoveStrategy :: Object -> MoveStrategy
 objMoveStrategy (Object _ _ _ _ _ _ _ m) = m
-objMoveStrategy (WormBoss _ _ _ _ _ _ _ m _) = m
+objMoveStrategy (WormBoss _ _ _ _ _ _ _ m _ _) = m
 objMoveStrategy _ = defaultMoveStrategy
 
 objSetMoveStrategy :: Object -> MoveStrategy -> Object
@@ -77,7 +77,7 @@ objSetMoveStrategy o m | isObject o = o { objectMoveStrategy = m }
                        | otherwise  = o
 
 objSetDirections :: Object -> Vector -> Vector -> Object
-objSetDirections w@(WormBoss _ _ _ _ _ _ _ _ _) dir prevDir = 
+objSetDirections w@(WormBoss _ _ _ _ _ _ _ _ _ _) dir prevDir = 
                 w { wormSprites = headSprite' : tailSprites }
     where   headSprite = head $ wormSprites w
             tailSprites = tail $ wormSprites w
@@ -146,7 +146,7 @@ objActiveWeapon o | isObject o = objectActiveWeapon o
 
 objToVelocity :: Object -> Integer
 objToVelocity o@(Object _ _ _ _ _ _ _ _) = objectVelocity o
-objToVelocity w@(WormBoss _ _ _ _ _ _ _ _ _) = wormVelocity w
+objToVelocity w@(WormBoss _ _ _ _ _ _ _ _ _ _) = wormVelocity w
 objToVelocity p@(Projectile _ _ _ _ _ _ _) = projectileVelocity p
 objToVelocity (Item _ _ _) = 0
 
@@ -249,7 +249,8 @@ objectDoMove' (MoveStrategy (ResetMoves:_) _) o diff =
 
 objectDoMove' (MoveStrategy (DefaultMove:_) canMove) o diff 
     | canMove && isObject o = modifySprite (flip move diff) o
-    | canMove && isWorm o = moveWorm o diff
+    | canMove && isWorm o = wormHandleAngry $ moveWorm o diff
+    | isWorm o = wormHandleAngry o
     | otherwise = o
 
 objectDoMove' ms@(MoveStrategy (StopMove:xs) _) o diff =
@@ -298,6 +299,11 @@ objectDoMove' ms@(MoveStrategy ((SetGraphic surface):xs) _) o diff =
 
 objectDoMove' ms@(MoveStrategy ((SetAnimation ani):xs) _) o diff =
         objectDoMove (modifySprite (\s -> s { spriteAnimator = ani }) o') diff
+    where   strategy = ms { moveStrategyMoves = xs }
+            o' = objSetMoveStrategy o strategy
+
+objectDoMove' ms@(MoveStrategy ((ApplyFunction fun):xs) _) o diff =
+        objectDoMove (fun o') diff
     where   strategy = ms { moveStrategyMoves = xs }
             o' = objSetMoveStrategy o strategy
 
@@ -483,6 +489,121 @@ addItemToHero hero (Item _ _ (ItemArrow amount)) = hero'
                         ammo  = weaponAmmo weapon
 addItemToHero hero _ = hero
 
+wormIsWoundCollission :: Object -> Object -> Bool
+wormIsWoundCollission worm proj 
+    | wormIsAngry worm = False
+    | wormIsNormal worm = isHeadCollission
+    | otherwise = isTailCollission
+    where   isHeadCollission = isCollission headBox $ boundingBox proj
+            headBox = boundingBox $ head $ objToSprites worm
+            isTailCollission = isCollission tailBox $ boundingBox proj
+            tailBox = boundingBox $ last $ objToSprites worm
+                            
+wormSetAni :: Integer -> Animator -> Object -> Object
+wormSetAni idx ani obj = 
+    let sprs = objToSprites obj
+        prefix = take (fromInteger idx) sprs
+        (spr:suffix) = drop (fromInteger idx) sprs
+        spr' = spr { spriteAnimator = ani }
+    in objSetSprites obj (prefix ++ (spr':suffix))
+
+wormWoundedTransitionAni :: Object -> MoveLogger ()
+wormWoundedTransitionAni worm = do
+    stopMoving
+    wormShowAnimations worm [ wormWoundedHeadAnimator
+                            , wormWoundedPointAnimator
+                            , wormWoundedMiddleAnimator
+                            , wormWoundedTailAnimator ]
+    waitMoving 200
+    applyFunction wormGoAngry
+
+wormNormalTransitionAni :: Object -> MoveLogger ()
+wormNormalTransitionAni = flip wormShowAnimations [ wormHeadAnimator
+                                                  , wormPointAnimator
+                                                  , wormMiddleAnimator
+                                                  , wormTailAnimator ]
+
+wormAngryTransitionAni :: Object -> MoveLogger ()
+wormAngryTransitionAni = flip wormShowAnimations [ wormAngryHeadAnimator
+                                                 , wormAngryPointAnimator
+                                                 , wormAngryMiddleAnimator
+                                                 , wormAngryTailAnimator ]
+
+wormDoShowAnimations :: [Animator] -> Integer -> Integer -> MoveLogger ()
+wormDoShowAnimations (headAni:pointAni:middleAni:tailAni:[]) spriteLen i
+    | i == 0 = applyFunction (wormSetAni i headAni)
+            >> waitMoving 3
+    | i == 1 = applyFunction (wormSetAni i pointAni)
+            >> waitMoving 3
+    | i == spriteLen = applyFunction (wormSetAni i tailAni)
+            >> waitMoving 3
+    | otherwise = applyFunction (wormSetAni i middleAni)
+            >> waitMoving 3
+
+wormShowAnimations :: Object -> [Animator] -> MoveLogger ()
+wormShowAnimations worm anis = mapM_ (wormDoShowAnimations anis spriteLen) spriteList
+    where   spriteLen = fromIntegral (length $ objToSprites worm) - 1
+            spriteList = reverse [0..spriteLen]
+            
+wormAngryVal :: WormWoundState -> Integer
+wormAngryVal (WormStateAngry i) = i
+{- this function handles the transition from angry to regular. It is called each
+   time the move-function is called. -}
+wormHandleAngry :: Object -> Object
+wormHandleAngry obj | not $ wormIsAngry obj = obj
+                    | wormAngryVal state <= 0 = wormGoNormal obj
+                    | otherwise = obj { wormWoundState = state' }
+    where   state = wormWoundState obj
+            state' = WormStateAngry (wormAngryVal state - 1)
+
+wormGoWounded :: Object -> Object
+wormGoWounded worm = worm { wormMoveStrategy = strategy'
+                          , wormWoundState = WormStateWounded }
+    where   movement = fst $ unMoveLogger (wormWoundedTransitionAni worm)
+            strategy = objMoveStrategy worm
+            strategy' = strategy { moveStrategyMoves =
+                                    movement ++ moveStrategyMoves strategy
+                                 }
+
+wormGoNormal :: Object -> Object
+wormGoNormal obj = obj { wormWoundState = WormStateNormal
+                       , wormMoveStrategy = strategy' }
+    where   strategy = wormMoveStrategy obj
+            movement = fst $ unMoveLogger (wormNormalTransitionAni obj)
+            strategy' = strategy { moveStrategyMoves =
+                                    movement ++ moveStrategyMoves strategy
+                                 }
+
+{- we are replacing the move strategy here since our worm should be able to walk
+   again in the angry state! -}
+wormGoAngry :: Object -> Object
+wormGoAngry obj = obj { wormWoundState = WormStateAngry 10
+                      , wormMoveStrategy = strategy }
+    where   strategy = defaultMoveStrategy { moveStrategyMoves = 
+                                                movement ++ [DefaultMove] }
+            movement = fst $ unMoveLogger (wormAngryTransitionAni obj)
+
+wormIsAngry :: Object -> Bool
+wormIsAngry obj | isWorm obj = isStateAngry $ wormWoundState obj
+                | otherwise = False
+    where   isStateAngry (WormStateAngry _) = True
+            isStateAngry _ = False
+
+wormIsWounded :: Object -> Bool
+wormIsWounded obj = isWorm obj && wormWoundState obj == WormStateWounded
+
+wormIsNormal :: Object -> Bool
+wormIsNormal obj = isWorm obj && wormWoundState obj == WormStateNormal
+
+wormHandleHitEvent :: Object -> Object -> Object
+wormHandleHitEvent worm proj 
+    | wormIsAngry worm = worm
+    | wormIsWounded worm = 
+        wormGoAngry (subtractHp worm (weaponStrength $ projectileWeapon proj))
+    | wormIsNormal worm = 
+        wormGoWounded worm
+        
+
 handleObjectEvents :: Object -> [Object] -> Object
 handleObjectEvents target objs = foldl' handleObjectEvents' target objs
     where   handleObjectEvents' obj other 
@@ -494,16 +615,16 @@ handleObjectEvents target objs = foldl' handleObjectEvents' target objs
                 | not $ projectileStarted p = o
                 | otherwise           = bounceBackObject (subtractHp o $ 
                                             weaponStrength $ projectileWeapon p) p
-            handleObjectEvents'' w@(WormBoss _ _ _ _ _ _ _ _ _) p@(Projectile _ _ _ _ _ _ _) 
+            handleObjectEvents'' w@(WormBoss _ _ _ _ _ _ _ _ _ _) p@(Projectile _ _ _ _ _ _ _) 
                 | isOwnProjectile w p = w
                 | not $ projectileStarted p = w
-                | otherwise = bounceBackObject (subtractHp w $ 
-                                            weaponStrength $ projectileWeapon p) p
+                | not $ wormIsWoundCollission w p = w
+                | otherwise = wormHandleHitEvent w p 
             handleObjectEvents'' p@(Projectile _ _ _ _ _ _ _) o@(Object _ _ _ _ _ _ _ _) 
                 | isOwnProjectile o p       = p
                 | not $ projectileStarted p = p
                 | otherwise                 = killProjectile p
-            handleObjectEvents'' p@(Projectile _ _ _ _ _ _ _) w@(WormBoss _ _ _ _ _ _ _ _ _) 
+            handleObjectEvents'' p@(Projectile _ _ _ _ _ _ _) w@(WormBoss _ _ _ _ _ _ _ _ _ _) 
                 | isOwnProjectile w p       = p
                 | not $ projectileStarted p = p
                 | otherwise                 = killProjectile p
@@ -518,11 +639,11 @@ handleObjectEvents target objs = foldl' handleObjectEvents' target objs
             handleObjectEvents'' o@(Object _ _ _ _ _ _ _ _) i@(Item _ _ _)
                 | isHero o = addItemToHero o i
                 | otherwise = o
-            handleObjectEvents'' o@(Object _ _ _ _ _ _ _ _) (WormBoss _ _ _ _ _ _ _ _ _) = o
-            handleObjectEvents'' w@(WormBoss _ _ _ _ _ _ _ _ _) (Object _ _ _ _ _ _ _ _) = w
-            handleObjectEvents'' w@(WormBoss _ _ _ _ _ _ _ _ _) (WormBoss _ _ _ _ _ _ _ _ _) = w
-            handleObjectEvents'' w@(WormBoss _ _ _ _ _ _ _ _ _) (Item _ _ _) = w
-            handleObjectEvents'' i@(Item _ _ _) (WormBoss _ _ _ _ _ _ _ _ _) = i
+            handleObjectEvents'' o@(Object _ _ _ _ _ _ _ _) (WormBoss _ _ _ _ _ _ _ _ _ _) = o
+            handleObjectEvents'' w@(WormBoss _ _ _ _ _ _ _ _ _ _) (Object _ _ _ _ _ _ _ _) = w
+            handleObjectEvents'' w@(WormBoss _ _ _ _ _ _ _ _ _ _) (WormBoss _ _ _ _ _ _ _ _ _ _) = w
+            handleObjectEvents'' w@(WormBoss _ _ _ _ _ _ _ _ _ _) (Item _ _ _) = w
+            handleObjectEvents'' i@(Item _ _ _) (WormBoss _ _ _ _ _ _ _ _ _ _) = i
             handleObjectEvents'' p@(Projectile _ _ _ _ _ _ _) (Item _ _ _) = p
             handleObjectEvents'' i@(Item _ _ _) (Projectile _ _ _ _ _ _ _) = i
 
@@ -541,7 +662,7 @@ isDead :: Object -> Bool
 isDead p@(Projectile _ s _ _ r _ _) = r || isOutOfScreen (spritePosition s) 
                                         || isOutOfRange p
 isDead (Object hp _ _ _ _ _ _ _) = hp <= 0
-isDead (WormBoss hp _ _ _ _ _ _ _ _) = hp <= 0
+isDead (WormBoss hp _ _ _ _ _ _ _ _ _) = hp <= 0
 isDead (Item _ time _) = time <= 0
 
 rejectDead :: [Object] -> [Object]
@@ -553,11 +674,11 @@ isObject _ = False
 
 isEnemy :: Object -> Bool
 isEnemy (Object _ _ _ _ _ _ _ _) = True
-isEnemy (WormBoss _ _ _ _ _ _ _ _ _) = True
+isEnemy (WormBoss _ _ _ _ _ _ _ _ _ _) = True
 isEnemy _ = False
 
 isWorm :: Object -> Bool
-isWorm (WormBoss _ _ _ _ _ _ _ _ _) = True
+isWorm (WormBoss _ _ _ _ _ _ _ _ _ _) = True
 isWorm _ = False
 
 isProjectile :: Object -> Bool

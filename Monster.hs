@@ -73,7 +73,7 @@ skelettonFoe = Object 2 3 fSprite [weaponSword'] 0 0 charAnimator defaultMoveStr
 {- Our boss is a worm. he has 2 hps and drains 2 hps -}
 bossFoe :: Object
 bossFoe = WormBoss 2 3 wormSprites [weaponSword'] 0 0 charAnimator
-            defaultMoveStrategy []
+            defaultMoveStrategy [] WormStateNormal
     where   wormSprites = [headSprite, pointSprite, middleSprite1, middleSprite2, tailSprite]
             weaponSword' = Weapon 2 wSprite 0 10 swordId 600 0 (-1) []
             headSprite = Sprite 4 foe5GraphicId headPos defaultVector 
@@ -113,12 +113,13 @@ tryPlaceMonster :: World -> World
 tryPlaceMonster world | null pending = world
                       | isSpawnPointEmpty = world'
                       | otherwise = world
-    where   isSpawnPointEmpty = not $ any collidesWithSpawnBox objects
+    where   isSpawnPointEmpty = not $ any collidesWithSpawnBox blockingObjs
             collidesWithSpawnBox = (isCollission spawnBox) .  boundingBox
             spawnBox = BBox (x * 16.0) (y * 16.0) 1.0
                             16.0 16.0
             spawnVec = Vector (x * 16.0) (y * 16.0) 1.0
             objects = worldObjects world
+            blockingObjs = filter (not . isItem) objects
             pending = worldPendingMonster world
             world' = world { worldPendingMonster = tail pending
                            , worldObjects = placedMonster : objects 
