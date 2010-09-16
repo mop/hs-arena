@@ -15,9 +15,13 @@ module Object
     , objSetHp
     , objWeapons
     , objActiveWeapon
+    , objSetWeapons
+    , objUpdateActiveWeapon
+    , objTryActiveWeapon
     , objPosition
     , objSetPosition
     , objHandleCollission
+    , objInsertMovements
     , handleObjectEvents
     , isDead
     , isEnemy
@@ -133,6 +137,13 @@ objDirection = spriteDirection . head . objToSprites
 objPosition :: Object -> Vector
 objPosition = bboxToVector . spritePosition . head . objToSprites
 
+objInsertMovements :: Object -> MoveLogger a -> Object
+objInsertMovements obj logger = objSetMoveStrategy obj strategy'
+    where   strategy' = strategy { moveStrategyMoves = moves ++ oldMoves }
+            moves = fst $ unMoveLogger logger
+            strategy = objMoveStrategy obj
+            oldMoves = moveStrategyMoves strategy
+
 wormSetPosition :: Object -> Vector -> Object
 wormSetPosition worm pos = objSetSprites worm sprs'
     where   diff = pos `vecMinus` (objPosition worm)
@@ -167,6 +178,26 @@ objActiveWeapon o | isObject o = objectActiveWeapon o
                   | isWorm o = wormActiveWeapon o
                   | isProjectile o = 0
                   | otherwise = (-1)
+
+objTryActiveWeapon :: Object -> Maybe Weapon
+objTryActiveWeapon obj | idx == (-1) = Nothing
+                       | otherwise = Just $ (objWeapons obj) !! idx
+    where   idx = fromInteger $ objActiveWeapon obj
+
+objUpdateActiveWeapon :: Object -> Weapon -> Object
+objUpdateActiveWeapon o w | idx == (-1) = o
+                          | otherwise = objSetWeapons o weapons'
+    where   idx = fromInteger $ objActiveWeapon o
+            weapons = objWeapons o
+            weapons' = let (_ : suffix) = drop idx weapons
+                           prefix = take idx weapons
+                       in prefix ++ (w : suffix)
+
+objSetWeapons :: Object -> [Weapon] -> Object
+objSetWeapons obj wps | isObject obj = obj { objectWeapons = wps }
+                      | isWorm obj = obj { wormWeapons = wps }
+                      | isProjectile obj = obj { projectileWeapon = head wps }
+                      | otherwise = obj
 
 
 objToVelocity :: Object -> Integer

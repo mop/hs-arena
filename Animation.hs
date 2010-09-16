@@ -9,6 +9,9 @@ module Animation
     , frameAnimator
     , frameStopAnimator
     , heroAnimator
+    , heroSwordSlayAnimation
+    , heroBowAnimation
+    , heroDeadAnimation
     , itemAnimator
     , wormHeadAnimator
     , wormPointAnimator
@@ -30,6 +33,9 @@ import Math (vectorToDirection, zeroVec)
 
 import qualified Graphics.UI.SDL as SDL
 
+{- Each of our sprites have an offset, which is added to the bounding box of the
+   sprite when drawing the sprite. This allows us to render a 24x32 pixel sprite
+   while having only a 16x16 bounding box. -}
 defaultCharOffset :: Vector
 defaultCharOffset = Vector 4.0 16.0 0.0
 
@@ -39,9 +45,14 @@ wormCharOffset = Vector 8.0 8.0 0.0
 defaultBattleOffset :: Vector
 defaultBattleOffset = Vector 40.0 48.0 0.0
 
+{- Our default char animator which animates a simple charset with a dimension of
+   24x32 pixels per char and three movement animations per direction. -}
 charAnimator :: Animator
 charAnimator = CustomAnimator charAnimation charMoveNext 4 10 0 0
 
+{- Since our worm enemy has a different spriteset (32x32) we need custom
+   animators for it. Each part of the worm in each state has a different
+   animator, which renders a different part of the big spritesheet.  -}
 wormHeadAnimator :: Animator
 wormHeadAnimator = CustomAnimator (wormOffsetAnimation 0 0) charMoveNext 4 10 0 0
 wormPointAnimator :: Animator
@@ -69,22 +80,49 @@ wormAngryMiddleAnimator = CustomAnimator (wormOffsetAnimation 96 512) charMoveNe
 wormAngryTailAnimator :: Animator
 wormAngryTailAnimator = CustomAnimator (wormOffsetAnimation 96 640) charMoveNext 4 10 0 0
 
+{- This animator actually ignores the direction of the sprite and renders the
+   sprite with the direction given in this function. -}
 fixedCharAnimator :: Direction -> Animator
 fixedCharAnimator dir = CustomAnimator (fixedCharAnimation dir) charMoveNext 4 10 0 0
+{- This animator actually ignores the direction of the sprite and renders the
+   sprite with the direction given in this function. The animator creates a
+   wounded effect by flashing the spritesheet red. -}
 fixedWoundedCharAnimator :: Direction -> Animator
 fixedWoundedCharAnimator dir = CustomAnimator (fixedWoundedCharAnimation dir) 
                                                frameMoveNextStop 5 1 0 0
+{- Since our hero sprite is a bit different from our regular enemy sprite we
+   need a different animator for the wounded hero -}
 fixedWoundedHeroAnimator :: Direction -> Animator
 fixedWoundedHeroAnimator dir = CustomAnimator (fixedWoundedHeroAnimation dir)
                                                frameMoveNextStop 5 1 0 0
+{- An animator which simply renders one frame after another. If the last frame
+   was reached the first frame is rendered again. The paramters are the width
+   and the height of one individual sprite, the maximum count, the frames per
+   count, the initial count and the initial frame. -}
 frameAnimator :: Int -> Int -> Integer -> Integer -> Integer -> Integer 
               -> Animator
 frameAnimator width height = CustomAnimator (frameAnimation width height) frameMoveNext 
+{- This animator behaves much like the frameAnimator, but stops animating after
+   reaching the last frame. -}
 frameStopAnimator :: Int -> Int -> Integer -> Integer -> Integer -> Integer 
                   -> Animator
 frameStopAnimator width height = CustomAnimator (frameAnimation width height) frameMoveNextStop
+
+{- Our hero animations -}
 heroAnimator :: Animator
 heroAnimator = CustomAnimator heroAnimation charMoveNext 8 5 0 0
+
+heroSwordSlayAnimation :: Animator
+heroSwordSlayAnimation = frameAnimator 96 96 10 2 0 0
+
+heroBowAnimation :: Animator
+heroBowAnimation = frameAnimator 96 96 6 3 0 0
+
+heroDeadAnimation :: Animator
+heroDeadAnimation = frameStopAnimator 96 96 8 5 0 0
+
+{- The item animator which is responsible for increasing the opacity for an item
+   to create the fading effect. -}
 
 itemAnimator :: Animator
 itemAnimator = CustomAnimator (itemAnimation 50) frameMoveNextStop 100 3 0 0

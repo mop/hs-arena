@@ -3,7 +3,7 @@ import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Mixer as SDLm
 import qualified Data.Map as M
 import Data.List (minimumBy, groupBy)
-import Control.Monad (forM, when)
+import Control.Monad (when)
 import Control.Monad.Reader (runReaderT)
 import Maybe (fromJust, isJust)
 import Random (randomIO)
@@ -22,51 +22,9 @@ import Sound
 import Graphics
 import Monster
 import Highscore
-import Math (bboxToRect, zeroVec, vectorToDirection, vecMul)
+import Hero (genHero, heroShootProjectile, heroSetDead, heroWithDirection)
+import Rendering (render, renderControls, renderBBoxes, renderPaths)
 
-heroSwordAnimations :: [(Direction, Integer)]
-heroSwordAnimations = [ (DirUp, heroSwordUpId)
-                      , (DirDown, heroSwordDownId)
-                      , (DirLeft, heroSwordLeftId)
-                      , (DirRight, heroSwordRightId) ]
-
-weaponSword :: Weapon
-weaponSword = Weapon 1 wSprite 1 10 swordId 600 0 (-1) heroSwordAnimations
-wSprite :: Sprite
-wSprite = defaultSprite { spriteId = 100
-                        , spriteGraphic = swordSpriteId
-                        , spriteTextureOffset = defaultCharOffset
-                        , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
-                        , spriteAnimator = charAnimator } 
-
-heroBowAnimations :: [(Direction, Integer)]
-heroBowAnimations = [ (DirUp, heroBowUpId)
-                    , (DirDown, heroBowDownId)
-                    , (DirLeft, heroBowLeftId)
-                    , (DirRight, heroBowRightId) ]
-
-weaponArrow :: Weapon
-weaponArrow = Weapon 2 bSprite 100 5 bowSpriteId 800 (3 * 4) 30 heroBowAnimations
-bSprite :: Sprite
-bSprite = defaultSprite { spriteId = 101
-                        , spriteGraphic = arrowSpriteId
-                        , spritePosition = BBox 0.0 0.0 1.0 16.0 16.0
-                        , spriteTextureOffset = defaultCharOffset
-                        , spriteAnimator = charAnimator }
-
-genHero :: Object
-genHero = Object 12 10 hSprite [weaponSword, weaponArrow] 0 0 heroAnimator defaultMoveStrategy
-    where   hSprite = Sprite 1 heroGraphicId position defaultVector defaultVector 0.0 defaultCharOffset heroAnimator
-            position = BBox 32.0 64.0 1.0 16.0 16.0
-
-heroSwordSlayAnimation :: Animator
-heroSwordSlayAnimation = frameAnimator 96 96 10 2 0 0
-
-heroBowAnimation :: Animator
-heroBowAnimation = frameAnimator 96 96 6 3 0 0
-
-heroDeadAnimation :: Animator
-heroDeadAnimation = frameStopAnimator 96 96 8 5 0 0
 
 genHeartItem :: Object
 genHeartItem = Item spr 300 $ ItemHeart 4
@@ -105,92 +63,6 @@ genRupeeItem obj = Item spr 300 $ ItemRupee rupees
             weapon = weapons !! idx
             idx = fromIntegral $ objActiveWeapon obj
             weapons = objWeapons obj
-                
-render :: World -> IO ()
-render world = forM graphics drawGraphic >> return ()
-    where   graphics = sortByZ $ tiles ++ sprites ++ anis
-            tiles = map tileLayer $ worldTileLayer world
-            sprites = (sprite $ objectSprite $ worldHero world) : 
-                      (map sprite (concatMap objToSprites $ drawObjects))
-            objects = filter isEnemy $ worldObjects world
-            projectiles = filter isProjectile $ worldObjects world
-            items = filter isItem $ worldObjects world
-            startedProjectiles = filter projectileStarted projectiles
-            drawObjects = objects ++ startedProjectiles ++ items
-            anis = map sprite $ worldAnimations world
-            screen = worldScreen world
-            theTexture s = M.lookup (texture s) (worldTextures world)
-            plotData s = PlotData screen (fromJust (theTexture s))
-            drawGraphic s = runReaderT (draw s) (plotData s)
-
-heroActiveWeapon :: World -> Weapon
-heroActiveWeapon world = weapons !! (fromInteger $ objActiveWeapon hero)
-    where hero = worldHero world
-          weapons = objWeapons hero
-                
-renderAmmo :: World -> IO ()
-renderAmmo world | weaponAmmo activeWeapon < 0 = return ()
-                 | otherwise = runReaderT (draw intSprite) plotData
-    where   activeWeapon = heroActiveWeapon world
-            intSprite = IntegerSprite ammo pos digitsSpriteId
-            ammo = weaponAmmo activeWeapon
-            pos = Vector 156.0 220.0 0.0
-            plotData = PlotData screen (fromJust tex)
-            tex = M.lookup digitsSpriteId $ worldTextures world
-            screen = worldScreen world
-
-renderHp :: World -> IO ()
-renderHp world = sequence_ . reverse $ fst heartActions
-    where   hp = objHp $ worldHero world
-            smallHeartRect p = Just $ SDL.Rect (9 * p) 0 9 9
-            bigHeartRect p = Just $ SDL.Rect (11 * p) 0 11 10
-            bgRect pos = Just $ SDL.Rect (20 + pos * 8) 10 9 9
-            bgRect' pos = Just $ SDL.Rect (19 + pos * 8) 10 11 11
-            smallHeartSf = fromJust $ M.lookup heartsSmallId $ worldTextures world
-            bigHeartSf = fromJust $ M.lookup heartsBigId $ worldTextures world
-            heartActions = foldl reducer ([], fromIntegral hp) [1..3]
-            reducer (xs, h) i | h > 4 = (xs ++ [createSmallFullHeart i], h - 4)
-                              | h > 0 = ((createBigHeart i h) : xs, 0)
-                              | otherwise = (xs ++ [createSmallEmptyHeart i], 0)
-            createSmallFullHeart p = SDL.blitSurface smallHeartSf (smallHeartRect 0) screen (bgRect p)
-            createSmallEmptyHeart p = SDL.blitSurface smallHeartSf (smallHeartRect 1) screen (bgRect p)
-            createBigHeart p num = SDL.blitSurface bigHeartSf (bigHeartRect $ 4 - num) screen (bgRect' p)
-            screen = worldScreen world
-
-renderScore :: World -> IO ()
-renderScore world = drawRupee 
-                 >> runReaderT (draw intSprite) plotData 
-                 >> return ()
-    where   intSprite = IntegerSprite score' pos digitsSpriteId
-            score' | score > 9999 = 9999
-                   | otherwise = score
-            score = worldScore world
-            plotData = PlotData screen (fromJust tex)
-            pos = Vector 304.0 224.0 0.0
-            tex = M.lookup digitsSpriteId $ worldTextures world
-            screen = worldScreen world
-            drawRupee = SDL.blitSurface rupeeSurface rupeeTexRect screen rupePos
-            rupeeSurface = fromJust $ M.lookup rupeeIconId $ worldTextures world
-            rupeeTexRect = Just $ SDL.Rect 0 0 16 16
-            rupePos = Just $ SDL.Rect 276 220 16 16
-            
-renderControls :: World -> IO ()
-renderControls world = renderHp world
-                    >> renderScore world
-                    >> SDL.blitSurface arrowLeftSurface Nothing screen (Just arrowLeftRect)
-                    >> SDL.blitSurface arrowRightSurface Nothing screen (Just arrowRightRect)
-                    >> SDL.blitSurface weaponSurface Nothing screen (Just weaponRect)
-                    >> renderAmmo world
-                    >> return ()
-    where   activeWeapon = heroActiveWeapon world
-            arrowLeftSurface = fromJust $ M.lookup arrowLeftId $ worldTextures world
-            arrowRightSurface = fromJust $ M.lookup arrowRightId $ worldTextures world
-            weaponSurface = fromJust $ M.lookup (weaponIcon activeWeapon)$ worldTextures world
-            screen = worldScreen world
-            -- borderRect = SDL.Rect 200 210 120 20
-            arrowLeftRect = SDL.Rect 128 212 16 16
-            weaponRect = SDL.Rect 144 212 16 16
-            arrowRightRect = SDL.Rect 160 212 16 16
 
 tilesetIds :: [Integer]
 tilesetIds = [500..]
@@ -297,9 +169,7 @@ initWorld world = do
                        }
     eventHandler world'
 
-data TitleMenu = TitleMenu {
-    titleArrowPosition :: Integer
-}
+data TitleMenu = TitleMenu { titleArrowPosition :: Integer }
 
 showHighscore :: World -> IO ()
 showHighscore world = do
@@ -403,7 +273,6 @@ setItemPositionFromObject :: Object -> Object -> Object
 setItemPositionFromObject item obj = item { itemSprite = spr }
     where   spr = (itemSprite item) { spritePosition = pos }
             pos = boundingBox obj
-            
 
 doPlayItemSound :: World -> Object -> IO ()
 doPlayItemSound world item = playSound sound (worldSounds world)
@@ -529,16 +398,6 @@ collidedItems world = filter ((isCollission $ boundingBox hero) . snd)
             objects = worldObjects world
             hero = worldHero world
 
-renderBBoxes :: World -> IO ()
-renderBBoxes world = do
-    let boxes = map (Just . bboxToRect) $ concatMap (boundingBoxes) enemies
-    let sf = fromJust $ M.lookup coll16RectGraphicId $ worldTextures world
-    let heroBox = Just $ bboxToRect $ boundingBox $ worldHero world
-    _ <- mapM (SDL.blitSurface sf Nothing screen) (heroBox : boxes)
-    return ()
-    where   objs = worldObjects world
-            enemies = filter isEnemy objs
-            screen = worldScreen world
 eventHandler :: World -> IO ()
 eventHandler world = do
     render world
@@ -546,7 +405,7 @@ eventHandler world = do
     when (configShowBoundingBoxes . worldConfig $ world) 
         (renderBBoxes world)
     when (configShowPaths . worldConfig $ world)
-        (mapM_ (renderPath world) $ filter isEnemy $ worldObjects world)
+        (renderPaths world)
     SDL.flip $ worldScreen world
     SDL.delay 10
 
@@ -559,7 +418,7 @@ eventHandler world = do
                       addDeadAnimations . (flip advanceAnimations ticks) .
                       controlObjectsWithAi) 
                       (generateItemsFromDeadObjects world'')
-    let world'''' = withHeroDirection world''' (const $ worldInput world''')
+    let world'''' = worldWithHeroDirection world''' (const $ worldInput world''')
 
     handleSounds world'
     handlePlayAttackSound world
@@ -616,7 +475,7 @@ handleGameOver world | isHeroDead && not aniShown = world'
                        objMoveStrategy hero) /= DefaultMove
             world' = world { worldHero = hero' 
                            , worldObjects = []}
-            hero' = heroSetAni world (heroDead world)
+            hero' = heroSetDead hero 
 
 doPlaySword :: World -> Bool -> IO ()
 doPlaySword _ False = return ()
@@ -652,150 +511,18 @@ handlePlayAttackSound world = doPlaySword world (hasAniStarted && isSwordGid)
                             , heroSwordRightId ]
 
 
-crossSprite ::Vector -> Sprite
-crossSprite (Vector x y z) = Sprite (-1) 1 position dir pDir 0.0 offset animator
-    where   position = BBox x y z 16.0 16.0
-            dir = defaultVector
-            pDir = defaultVector
-            offset = defaultVector
-            animator = frameAnimator 16 16 0 0 0 0
-
-renderPath :: World -> Object -> IO ()
-renderPath world obj = mapM_ drawGraphic sprites
-    where   sprites = map (crossSprite . moveToVec) paths
-            paths = filter isAiMove moves
-            moves = moveStrategyMoves strategy
-            strategy = objMoveStrategy obj
-            moveToVec (MoveTo pos _ _) = pos
-            moveToVec _ = defaultVector
-            theTexture s = M.lookup (texture s) (worldTextures world)
-            screen = worldScreen world
-            plotData s = PlotData screen (fromJust (theTexture s))
-            drawGraphic s = runReaderT (draw s) (plotData s)
-
-heroCanMove :: World -> Bool
-heroCanMove world = head moves == DefaultMove
+worldWithHero :: World -> (Object -> Object) -> World
+worldWithHero world fun = world { worldHero = fun hero }
     where   hero = worldHero world
-            moves = moveStrategyMoves . objMoveStrategy $ hero
-withHeroDirection :: World -> (Vector -> Vector) -> World
-withHeroDirection world fun | heroCanMove world = world { worldHero = hero' }
-                            | otherwise = world
-    where   direction' = fun $ spriteDirection $ objectSprite $ worldHero world
-            dir = spriteDirection $ objectSprite $ worldHero world
-            hero = worldHero world
-            hSprite = objectSprite hero
-            prevDir | zeroVec dir = spritePrevDirection $ hSprite
-                    | otherwise = dir
-            sprite' = (objectSprite $ worldHero world) { 
-                        spriteDirection = direction'
-                      , spritePrevDirection = prevDir
-                      }
-            hero' = (worldHero world) { objectSprite = sprite' }
+
+worldWithHeroDirection :: World -> (Vector -> Vector) -> World
+worldWithHeroDirection world fun = 
+    worldWithHero world (flip heroWithDirection fun)
 
 setVecX :: Double -> Vector -> Vector
 setVecX x v = v { vecX = x }
 setVecY :: Double -> Vector -> Vector
 setVecY y v = v { vecY = y }
-
-swordDirToGraphicId :: Direction -> Integer
-swordDirToGraphicId DirUp    = heroSwordUpId
-swordDirToGraphicId DirDown  = heroSwordDownId
-swordDirToGraphicId DirLeft  = heroSwordLeftId
-swordDirToGraphicId DirRight = heroSwordRightId
-
-bowDirToGraphicId :: Direction -> Integer
-bowDirToGraphicId DirUp    = heroBowUpId
-bowDirToGraphicId DirDown  = heroBowDownId
-bowDirToGraphicId DirLeft  = heroBowLeftId
-bowDirToGraphicId DirRight = heroBowRightId
-
-heroSwordSlay :: World -> Direction -> MoveLogger ()
-heroSwordSlay _ dir = do
-    stopMoving
-    setGraphic (swordDirToGraphicId dir)
-    setTextureOffset defaultBattleOffset
-    startAnimation heroSwordSlayAnimation
-    waitAnimation
-    setGraphic heroGraphicId
-    setTextureOffset defaultCharOffset
-    startAnimation heroAnimator
-    startMoving
-
-heroBow :: World -> Direction -> MoveLogger ()
-heroBow _ dir = do
-    stopMoving
-    setGraphic (bowDirToGraphicId dir)
-    setTextureOffset defaultBattleOffset
-    startAnimation heroBowAnimation
-    waitAnimation
-    setGraphic heroGraphicId
-    setTextureOffset defaultCharOffset
-    startAnimation heroAnimator
-    startMoving
-
-heroDead :: World -> MoveLogger ()
-heroDead _ = do
-    stopMoving
-    setGraphic (heroDeadId)
-    setTextureOffset defaultBattleOffset
-    startAnimation heroDeadAnimation
-    waitAnimation
-
-heroSetSwordSlay :: World -> Direction -> Object
-heroSetSwordSlay world dir = heroSetAni world (heroSwordSlay world dir)
-
-heroSetBow :: World -> Direction -> Object
-heroSetBow world dir = heroSetAni world (heroBow world dir)
-
-heroSetAni :: World -> MoveLogger () -> Object
-heroSetAni world logger = hero'
-    where   moves = fst $ unMoveLogger logger
-            hero = worldHero world
-            hero' = hero { objectMoveStrategy = strategy' }
-            strategy = objMoveStrategy hero
-            strategy' = strategy { moveStrategyMoves = moves ++ 
-                                    (moveStrategyMoves strategy)
-                                 }
-
-weaponToHeroAni :: Weapon -> (World -> Direction -> Object)
-weaponToHeroAni weapon | weaponIcon weapon == swordId =  heroSetSwordSlay
-                       | weaponIcon weapon == bowSpriteId = heroSetBow
-                       | otherwise = heroSetSwordSlay      -- default
-    
-shootProjectile :: World -> World
-shootProjectile world | canShoot && heroCanMove world  
-                                  = world { worldObjects = projectile : objects 
-                                          , worldHero = hero'
-                                          }
-                      | otherwise = world
-    where   objects = worldObjects world
-            projectile = Projectile (weaponVelocity activeWeapon) spr activeWeapon 
-                                     position False (Just hero) start
-            start = weaponFrameStart activeWeapon
-            hero = worldHero world
-            hero' = ((weaponToHeroAni activeWeapon) world (vectorToDirection heroDirection))
-                         { objectWeaponLastShoot = worldTicks world
-                         , objectWeapons = weapons'
-                         }
-            spr = (weaponSprite activeWeapon) { spriteDirection = direction'
-                                              , spritePosition = spritePosition hSprite
-                                              }
-            hSprite = objectSprite hero
-            activeWeapon = weapons !! wIndex
-            activeWeapon' = weaponDecAmmo activeWeapon
-            wIndex = fromInteger $ objActiveWeapon hero
-            weapons = objWeapons hero
-            weapons' = let (_ : suffix) = drop wIndex weapons
-                           prefix = take wIndex weapons
-                       in prefix ++ (activeWeapon' : suffix)
-            position = Vector (bboxX bbox) (bboxY bbox) 2.0
-            bbox = boundingBox hero
-            heroDirection = spriteFacing hSprite
-            direction' = heroDirection `vecMul` (weaponVelocity activeWeapon)
-            canShoot = weaponCooldown activeWeapon < diffTicks &&
-                       weaponHasEnoughAmmo activeWeapon
-            diffTicks = worldTicks world - objWeaponLastShoot hero 
-
 
 withWorldInput :: World -> (Vector -> Vector) -> World
 withWorldInput w fun = let v = fun $ worldInput w
@@ -828,10 +555,9 @@ handleEvent w (SDL.KeyDown keysym) | SDL.symKey keysym == SDL.SDLK_q     = retur
                                    | SDL.symKey keysym == SDL.SDLK_DOWN  = eventHandler $ withWorldInput w (setVecY 1.0)
                                    | SDL.symKey keysym == SDL.SDLK_z     = eventHandler $ withActiveWeapon w (circlePrev w)
                                    | SDL.symKey keysym == SDL.SDLK_x     = eventHandler $ withActiveWeapon w (circleNext w)
-                                   | SDL.symKey keysym == SDL.SDLK_SPACE = eventHandler $ shootProjectile w
+                                   | SDL.symKey keysym == SDL.SDLK_SPACE = eventHandler $ heroShootProjectile w
 handleEvent w (SDL.KeyUp keysym) | SDL.symKey keysym == SDL.SDLK_LEFT  = eventHandler $ withWorldInput w (setVecX 0.0)
                                  | SDL.symKey keysym == SDL.SDLK_RIGHT = eventHandler $ withWorldInput w (setVecX 0.0)
                                  | SDL.symKey keysym == SDL.SDLK_UP    = eventHandler $ withWorldInput w (setVecY 0.0)
                                  | SDL.symKey keysym == SDL.SDLK_DOWN  = eventHandler $ withWorldInput w (setVecY 0.0)
 handleEvent w _ = eventHandler w
-
