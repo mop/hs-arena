@@ -1,0 +1,118 @@
+Name:                arena
+Version:             0.0.1
+Stability:           experimental
+Synopsis:            Zelda like fighting mini-game using SDL
+Description:         Zelda like fighting mini-game using SDL
+License:             GPL-3
+License-file:        LICENSE
+Author:              Michael Opitz
+Maintainer:          opitz.michael (-at-) gmail (-dot-) com
+Build-Type:          Simple
+Cabal-Version:       >=1.4
+Category:            Game
+Homepage:            ProjectHomepage
+
+Data-Files:          images/arrow-left.png
+                   , images/arrow-right.png
+                   , images/arrow-sprite.png
+                   , images/battle-arena.psd
+                   , images/bow.png
+                   , images/circle.png
+                   , images/collission-rect-16.png
+                   , images/cross.png
+                   , images/digits.png
+                   , images/enemy-dead.png
+                   , images/foe-1.png
+                   , images/foe-2.png
+                   , images/foe-3.png
+                   , images/foe-4.png
+                   , images/foe.png
+                   , images/foe.pxi
+                   , images/fonts.png
+                   , images/game-over.png
+                   , images/heart.png
+                   , images/hearts-big.png
+                   , images/hearts-small.png
+                   , images/hero-bow-down.png
+                   , images/hero-bow-left.png
+                   , images/hero-bow-right.png
+                   , images/hero-bow-up.png
+                   , images/hero-dead.png
+                   , images/hero-sword-down.png
+                   , images/hero-sword-left.png
+                   , images/hero-sword-right.png
+                   , images/hero-sword-up.png
+                   , images/hero-sword.png
+                   , images/hero.png
+                   , images/highscore.png
+                   , images/hp-bar.png
+                   , images/hps.png
+                   , images/item-arrow.png
+                   , images/item-heart.png
+                   , images/item-rupee-blue-big.png
+                   , images/item-rupee-blue.png
+                   , images/item-rupee-green-big.png
+                   , images/item-rupee-green.png
+                   , images/item-rupee-red-big.png
+                   , images/item-rupee-red.png
+                   , images/map.tmx
+                   , images/minish_chip_forest_01.col
+                   , images/minish_chip_forest_01.png
+                   , images/rock-icon.png
+                   , images/rock.png
+                   , images/rupee-icon.png
+                   , images/rupees.png
+                   , images/sword-sprite.png
+                   , images/sword.png
+                   , "images/tileset1 copy.png"
+                   , images/tileset1.png
+                   , images/title-arrow.png
+                   , images/titlescreen.png
+                   , images/worm-blue.png
+                   , "music/Game Over.mp3"
+                   , "music/Intro Screen.mp3"
+                   , music/music.mp3
+                   , sound/MC_Arrow_Hit.wav
+                   , sound/MC_Arrow_Shoot.wav
+                   , sound/MC_Enemy_Hit.wav
+                   , sound/MC_Enemy_Kill.wav
+                   , sound/MC_Heart.wav
+                   , sound/MC_Link_Die_Tune.wav
+                   , sound/MC_Link_Hurt.wav
+                   , sound/MC_Link_Sword.wav
+                   , sound/MC_Link_Sword1.wav
+                   , sound/MC_Link_Sword2.wav
+                   , sound/MC_Link_Sword3.wav
+                   , sound/MC_Rupee.wav
+                   , sound/MC_Rupee_Bounce.wav
+
+Executable arena
+  Main-is:           Main.hs
+  Other-modules:     AI
+                     Animation
+                     ChipsetViewer
+                     Collission
+                     Graphics
+                     Hero
+                     Highscore
+                     Main
+                     MapLoader
+                     Math
+                     Monster
+                     Movemap
+                     Object
+                     Rendering
+                     Search
+                     Sound
+                     Tile
+                     Types
+
+  Build-Depends:     base >= 4, containers, random, SDL, SDL-image, SDL-mixer,
+                     HaXml, mtl, haskell98, PSQueue
+
+  ghc-options: -Wall -O
+  ghc-prof-options: -prof -auto-all
+  Includes: SDL/SDL.h 
+  Extra-libraries: SDL SDLmain smpeg
+  
+  c-sources:           wrapper.c

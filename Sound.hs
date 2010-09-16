@@ -10,6 +10,8 @@ import qualified Graphics.UI.SDL.Mixer as SDLm
 import Random (randomIO)
 import Types (Sounds(..), SoundMap)
 
+import Paths_arena
+
 soundList :: [(Sounds, String)]
 soundList = [ (SoundSword,       "sound/MC_Link_Sword1.wav")
             , (SoundSword,       "sound/MC_Link_Sword2.wav")
@@ -26,7 +28,8 @@ soundList = [ (SoundSword,       "sound/MC_Link_Sword1.wav")
 
 loadSounds :: IO SoundMap
 loadSounds = mapM loadSound soundList 
-    where   loadSound (s, p) = ((,) s) `fmap` SDLm.loadWAV p
+    where   loadSound (s, p) = ((,) s) `fmap` 
+                (getDataFileName p >>= SDLm.loadWAV)
 
 getChunk :: Sounds -> SoundMap -> IO SDLm.Chunk
 getChunk sound xs = fmap (snd . (theSounds !!) . (`mod` l)) randomIO

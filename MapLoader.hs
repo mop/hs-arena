@@ -13,6 +13,8 @@ import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Image as SDLi
 import Data.List (sortBy)
 
+import Paths_arena
+
 data Tileset = Tileset { tilesetSource :: String
                        , tilesetFirstGid :: Integer
                        , tilesetTileWidth :: Integer
@@ -65,9 +67,13 @@ loadTiles filename tilesets = layers >>= \l ->
                                            ((tilesetFirstGid . snd) b)
             lookupTileset idx = head $ takeWhile (\(idx', _) -> idx' > idx) sortedTilesets
 
+loadTilesetPath :: Tileset -> IO Tileset
+loadTilesetPath tile = getDataFileName (tilesetSource tile) >>= \f ->
+                        return (tile { tilesetSource = f })
+
 loadTilesets :: String -> IO [(Tileset, SDL.Surface)]
 loadTilesets filename = do
-        tiles <- parseTilesets filename
+        tiles <- parseTilesets filename 
         mapM loadTileset tiles
     where   loadTileset tile = SDLi.load (tilesetSource tile) >>= \s -> 
                                return (tile, s)
@@ -110,12 +116,15 @@ getTilesets doc = map toTileset $ filterTilesets doc
 
 loadCollissionDataForTilesets :: [Tileset] -> IO [Tileset]
 loadCollissionDataForTilesets = mapM load
-    where load tileset = do 
-            ct <- loadCollissionData $ (takeWhile (/= '.') $ tilesetSource tileset) ++ ".col" 
-            return $ tileset { tilesetCollissionData = ct }
+    where   load tileset = do 
+                ct <- loadCollissionData 
+                    ((removeExtension $ tilesetSource tileset) ++ "col")
+                return $ tileset { tilesetCollissionData = ct }
+            removeExtension = reverse . dropWhile (/= '.') . reverse 
 
 parseTilesets :: String -> IO [Tileset]
-parseTilesets filename = content >>= loadCollissionDataForTilesets . getTilesets 
+parseTilesets filename = content >>= (mapM loadTilesetPath) . getTilesets 
+                                 >>= loadCollissionDataForTilesets
     where   document = readFile filename >>= return . (xmlParse filename)
             content = fmap documentToContent document
 

@@ -9,6 +9,7 @@ import Maybe (fromJust, isJust)
 import Random (randomIO)
 import System.Console.GetOpt
 import System (getArgs, exitWith, ExitCode(..))
+import Paths_arena
 
 import Types
 import Tile
@@ -133,7 +134,7 @@ main = do
     SDL.init [SDL.InitVideo, SDL.InitAudio]
     SDL.enableUnicode True
     SDLm.openAudio audioRate audioFormat audioChannels audioBuffers 
-    music <- SDLm.loadMUS "music/music.mp3"
+    music <- getDataFileName "music/music.mp3" >>= SDLm.loadMUS
     screen <- SDL.setVideoMode 320 240 32 []
 
     highscore <- loadHighscore
@@ -143,7 +144,8 @@ main = do
     let world = World screen [] [] [] (monstersForLevel 0) [] genHero textures 
                       ticks ticks defaultVector 0 music sounds 0 [] highscore
                       config
-    world' <- (loadMap "images/map.tmx" world >>= preloadMapLayers)
+    world' <- (getDataFileName "images/map.tmx" >>= \f ->
+                 loadMap f world >>= preloadMapLayers)
 
     SDLm.playMusic music (-1)
     --eventHandler world'
@@ -154,7 +156,7 @@ main = do
 
 initWorld :: World -> IO ()
 initWorld world = do
-    music <- SDLm.loadMUS "music/music.mp3"
+    music <- getDataFileName "music/music.mp3" >>= SDLm.loadMUS
     SDLm.playMusic music (-1)
     ticks <- fmap fromIntegral SDL.getTicks
     let world' = world { worldObjects = monstersForLevel 0
@@ -199,7 +201,7 @@ titleMenuUp menu = menu { titleArrowPosition = position' }
 
 titlescreen :: World -> TitleMenu -> IO ()
 titlescreen world menu = do
-    music <- SDLm.loadMUS "music/Intro Screen.mp3"
+    music <- getDataFileName "music/Intro Screen.mp3" >>= SDLm.loadMUS
     SDLm.playMusic music (-1)
     titlescreen' world { worldBgm = music } menu
 
@@ -432,7 +434,7 @@ eventHandler world = do
 
 showGameOver :: World -> IO ()
 showGameOver world = do
-    music <- SDLm.loadMUS "music/Game Over.mp3"
+    music <- getDataFileName "music/Game Over.mp3" >>= SDLm.loadMUS 
     SDLm.playMusic music (-1)
     showGameOver' world { worldBgm = music }
 

@@ -8,8 +8,7 @@ import qualified Graphics.UI.SDL.Image as SDLi
 import qualified Data.Map as M
 import Types
 
-{- TODO, implement loading from _REAL_ path -}
--- import Paths_fight
+import Paths_arena
 
 crossGraphicId :: Integer
 crossGraphicId = 1
@@ -148,5 +147,7 @@ graphicTextureMap = [ (crossGraphicId,      "images/cross.png")
 {- This function loads all the textures -}
 loadGraphics :: IO TextureMap
 loadGraphics = mapM loadGraphic graphicTextureMap >>= return . M.fromList
-    where   loadGraphic (gid, path) = SDLi.load path >>= (return . ((,) gid))
+    where   loadGraphic (gid, path) = getDataFileName path
+                                  >>= SDLi.load 
+                                  >>= (return . ((,) gid))
 
